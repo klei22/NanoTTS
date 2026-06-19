@@ -1,0 +1,51 @@
+id	category	text	focus
+01	vowels	apa itu	/a i u/
+02	vowels	ini ibu	/i u/
+03	vowels	obat itu	/o a i u/
+04	vowels	sate enak	/e and schwa/open-e ambiguity
+05	vowels	besar sekali	plain e ambiguity
+06	vowels	bebek merah	multiple e qualities
+07	stops	paku baku	/p b/
+08	stops	tari dari	/t d/
+09	stops	kali gali	/k g/
+10	affricates	cari jari	/tsh dzh/
+11	fricatives	foto video	/f v/
+12	fricatives	saya ziarah	/s z h/
+13	fricatives	khusus harus	/x h s/
+14	nasals	masa mana	/m n/
+15	nasals	nanti nyanyi	/n ny/
+16	nasals	tangan nyaman	/ng ny/
+17	liquids	lari hari	/l r h/
+18	liquids	rawan lawan	/r l w/
+19	glides	wajar yakin	/w y/
+20	rhotics	rata bara	initial and medial r
+21	diphthongs	pantai pulau amboi	/ai au oi/
+22	diphthongs	sampai kerbau	/ai au/
+23	finals	tidak baik	final k and diphthong
+24	finals	bapak masuk	final k
+25	finals	rakyat Jumat	clusters and final consonants
+26	digraphs	nyanyi dengan angin	ny ng
+27	digraphs	syarat khusus akhir	sy kh
+28	common	selamat pagi	common greeting
+29	common	terima kasih	common thanks
+30	common	apa kabar	common question
+31	common	saya tidak mengerti	common sentence
+32	common	tolong buka pintu	imperative
+33	alerts	baterai hampir habis	embedded alert
+34	alerts	suhu mesin terlalu tinggi	embedded alert
+35	alerts	sistem sudah siap	embedded status
+36	alerts	kendaraan berhenti di depan	longer status
+37	alerts	peringatan, tekanan air rendah	comma phrasing
+38	numbers	satu dua tiga empat lima	digit words
+39	numbers	17 42 105 2026	number expansion
+40	numbers	suhu tiga puluh tujuh derajat	number phrase
+41	prosody	Apakah pintu depan sudah terkunci?	question contour
+42	prosody	Ya, pintu sudah terkunci.	statement and comma
+43	prosody	Awas! Mesin terlalu panas.	exclamation and phrase break
+44	long	Selamat datang. Sistem pemantauan sedang aktif dan semua sensor bekerja dengan normal.	multi-sentence
+45	long	Baterai tinggal dua puluh persen; segera hubungkan pengisi daya.	multi-clause
+46	loanwords	video ekspor teknologi	loanword phones
+47	loanwords	GPS aktif	acronym challenge
+48	loanwords	WiFi terhubung	mixed orthography
+49	clusters	struktur transportasi praktis	consonant clusters
+50	clusters	instruksi berikutnya	clusters and affricate

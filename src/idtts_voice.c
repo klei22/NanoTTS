@@ -1,0 +1,120 @@
+/* SPDX-License-Identifier: MIT */
+#include "idtts_internal.h"
+
+/*
+ * The values below are an original, hand-tuned neutral starting voice. They
+ * are intentionally compact rather than an acoustic copy of another engine.
+ * Frequencies are in hertz. The end targets are used by diphthongs and glides.
+ */
+#define DEF(kind_, dur_, voice_, noise_, f1_, f2_, f3_, f4_, e1_, e2_, e3_, e4_, nc_, nb_, amp_) \
+    { (uint8_t)(kind_), (uint8_t)(dur_), (uint8_t)(voice_), (uint8_t)(noise_), \
+      (uint16_t)(f1_), (uint16_t)(f2_), (uint16_t)(f3_), (uint16_t)(f4_), \
+      (uint16_t)(e1_), (uint16_t)(e2_), (uint16_t)(e3_), (uint16_t)(e4_), \
+      (uint16_t)(nc_), (uint16_t)(nb_), (uint8_t)(amp_), 0u }
+
+static const idtts_phone_def_t PHONE_DEFS[IDTTS_PH_COUNT] = {
+    /* pauses */
+    DEF(IDTTS_KIND_PAUSE, 70, 0, 0, 500, 1500, 2500, 3500, 500, 1500, 2500, 3500, 0, 0, 0),
+    DEF(IDTTS_KIND_PAUSE, 28, 0, 0, 500, 1500, 2500, 3500, 500, 1500, 2500, 3500, 0, 0, 0),
+    DEF(IDTTS_KIND_PAUSE, 145, 0, 0, 500, 1500, 2500, 3500, 500, 1500, 2500, 3500, 0, 0, 0),
+
+    /* vowels */
+    DEF(IDTTS_KIND_VOWEL, 105, 255, 4, 730, 1250, 2500, 3500, 730, 1250, 2500, 3500, 0, 0, 245), /* a */
+    DEF(IDTTS_KIND_VOWEL, 95, 255, 3, 430, 1950, 2620, 3500, 430, 1950, 2620, 3500, 0, 0, 238),  /* e */
+    DEF(IDTTS_KIND_VOWEL, 76, 245, 8, 500, 1500, 2500, 3450, 500, 1500, 2500, 3450, 0, 0, 215),  /* schwa */
+    DEF(IDTTS_KIND_VOWEL, 98, 255, 4, 610, 1760, 2490, 3400, 610, 1760, 2490, 3400, 0, 0, 242),  /* open e */
+    DEF(IDTTS_KIND_VOWEL, 92, 255, 2, 285, 2250, 3010, 3650, 285, 2250, 3010, 3650, 0, 0, 235),  /* i */
+    DEF(IDTTS_KIND_VOWEL, 82, 250, 3, 390, 2020, 2840, 3550, 390, 2020, 2840, 3550, 0, 0, 225),  /* small i */
+    DEF(IDTTS_KIND_VOWEL, 98, 255, 4, 450, 930, 2420, 3400, 450, 930, 2420, 3400, 0, 0, 242),    /* o */
+    DEF(IDTTS_KIND_VOWEL, 100, 255, 5, 570, 870, 2410, 3350, 570, 870, 2410, 3350, 0, 0, 242),   /* open o */
+    DEF(IDTTS_KIND_VOWEL, 94, 255, 3, 310, 900, 2250, 3300, 310, 900, 2250, 3300, 0, 0, 235),    /* u */
+    DEF(IDTTS_KIND_VOWEL, 84, 250, 4, 430, 1120, 2350, 3350, 430, 1120, 2350, 3350, 0, 0, 225),  /* small u */
+
+    /* diphthongs */
+    DEF(IDTTS_KIND_DIPHTHONG, 145, 255, 3, 730, 1250, 2500, 3500, 300, 2200, 2980, 3650, 0, 0, 242), /* ai */
+    DEF(IDTTS_KIND_DIPHTHONG, 150, 255, 3, 730, 1250, 2500, 3500, 320, 900, 2250, 3300, 0, 0, 242),  /* au */
+    DEF(IDTTS_KIND_DIPHTHONG, 145, 255, 3, 450, 930, 2420, 3400, 300, 2200, 2980, 3650, 0, 0, 240),  /* oi */
+
+    /* stops */
+    DEF(IDTTS_KIND_STOP_VOICELESS, 64, 0, 215, 500, 1200, 2500, 3500, 500, 1200, 2500, 3500, 3100, 2600, 225), /* p */
+    DEF(IDTTS_KIND_STOP_VOICED, 67, 115, 125, 300, 900, 2200, 3300, 300, 900, 2200, 3300, 1500, 1700, 220),   /* b */
+    DEF(IDTTS_KIND_STOP_VOICELESS, 62, 0, 225, 500, 1800, 2800, 3800, 500, 1800, 2800, 3800, 4900, 2800, 230),/* t */
+    DEF(IDTTS_KIND_STOP_VOICED, 66, 120, 125, 350, 1700, 2700, 3700, 350, 1700, 2700, 3700, 3700, 2200, 220), /* d */
+    DEF(IDTTS_KIND_STOP_VOICELESS, 70, 0, 225, 450, 1350, 2500, 3500, 450, 1350, 2500, 3500, 2100, 1800, 230),/* k */
+    DEF(IDTTS_KIND_STOP_VOICED, 72, 125, 120, 330, 1200, 2400, 3400, 330, 1200, 2400, 3400, 1750, 1500, 220), /* g */
+    DEF(IDTTS_KIND_STOP_VOICELESS, 62, 0, 70, 450, 1500, 2500, 3500, 450, 1500, 2500, 3500, 900, 900, 190),    /* glottal stop */
+
+    /* affricates */
+    DEF(IDTTS_KIND_AFFRICATE_VOICELESS, 105, 0, 240, 420, 1700, 2800, 3800, 420, 1700, 2800, 3800, 3500, 2300, 238), /* ch */
+    DEF(IDTTS_KIND_AFFRICATE_VOICED, 110, 115, 205, 380, 1650, 2700, 3700, 380, 1650, 2700, 3700, 3000, 2200, 230),  /* j */
+
+    /* fricatives */
+    DEF(IDTTS_KIND_FRICATIVE_VOICELESS, 88, 0, 190, 500, 1400, 2600, 3600, 500, 1400, 2600, 3600, 2500, 3000, 205), /* f */
+    DEF(IDTTS_KIND_FRICATIVE_VOICED, 90, 110, 150, 450, 1400, 2500, 3500, 450, 1400, 2500, 3500, 2400, 2800, 200),  /* v */
+    DEF(IDTTS_KIND_FRICATIVE_VOICELESS, 95, 0, 255, 450, 1800, 3200, 4500, 450, 1800, 3200, 4500, 5600, 2600, 245), /* s */
+    DEF(IDTTS_KIND_FRICATIVE_VOICED, 96, 110, 220, 430, 1750, 3100, 4400, 430, 1750, 3100, 4400, 5200, 2600, 235),  /* z */
+    DEF(IDTTS_KIND_FRICATIVE_VOICELESS, 100, 0, 250, 430, 1750, 2800, 3900, 430, 1750, 2800, 3900, 3400, 2300, 242),/* sh/ç */
+    DEF(IDTTS_KIND_FRICATIVE_VOICELESS, 92, 0, 225, 450, 1200, 2300, 3300, 450, 1200, 2300, 3300, 1750, 1700, 225),/* x */
+    DEF(IDTTS_KIND_FRICATIVE_VOICELESS, 72, 0, 155, 500, 1500, 2500, 3500, 500, 1500, 2500, 3500, 1200, 2500, 180),/* h */
+
+    /* nasals */
+    DEF(IDTTS_KIND_NASAL, 84, 220, 8, 260, 900, 2200, 3200, 260, 900, 2200, 3200, 0, 0, 205),  /* m */
+    DEF(IDTTS_KIND_NASAL, 82, 220, 7, 270, 1500, 2450, 3400, 270, 1500, 2450, 3400, 0, 0, 205),/* n */
+    DEF(IDTTS_KIND_NASAL, 88, 220, 7, 280, 2050, 2850, 3650, 280, 2050, 2850, 3650, 0, 0, 205),/* ny */
+    DEF(IDTTS_KIND_NASAL, 88, 220, 7, 270, 1150, 2350, 3300, 270, 1150, 2350, 3300, 0, 0, 205),/* ng */
+
+    /* liquids and glides */
+    DEF(IDTTS_KIND_LIQUID, 72, 235, 5, 360, 1300, 2600, 3500, 360, 1300, 2600, 3500, 0, 0, 215), /* l */
+    DEF(IDTTS_KIND_TRILL, 78, 225, 7, 420, 1450, 2500, 3450, 420, 1450, 2500, 3450, 0, 0, 215),   /* r */
+    DEF(IDTTS_KIND_TAP, 38, 215, 5, 420, 1450, 2500, 3450, 420, 1450, 2500, 3450, 0, 0, 205),     /* tap */
+    DEF(IDTTS_KIND_GLIDE, 64, 235, 4, 320, 850, 2250, 3300, 430, 1250, 2450, 3450, 0, 0, 205),    /* w */
+    DEF(IDTTS_KIND_GLIDE, 62, 235, 3, 300, 2200, 3000, 3650, 420, 1750, 2700, 3500, 0, 0, 205)    /* y */
+};
+
+#undef DEF
+
+static const char *const PHONE_NAMES[IDTTS_PH_COUNT] = {
+    "sil", "pause", "phrase",
+    "a", "e", "schwa", "open-e", "i", "small-i", "o", "open-o", "u", "small-u", "ai", "au", "oi",
+    "p", "b", "t", "d", "k", "g", "glottal-stop",
+    "ch", "j",
+    "f", "v", "s", "z", "sh", "x", "h",
+    "m", "n", "ny", "ng",
+    "l", "r", "tap", "w", "y"
+};
+
+const idtts_phone_def_t *idtts_phone_def(idtts_phone_t phone)
+{
+    if ((unsigned)phone >= (unsigned)IDTTS_PH_COUNT) {
+        return &PHONE_DEFS[IDTTS_PH_SILENCE];
+    }
+    return &PHONE_DEFS[phone];
+}
+
+bool idtts_phone_is_vowel(idtts_phone_t phone)
+{
+    const idtts_phone_def_t *def = idtts_phone_def(phone);
+    return def->kind == IDTTS_KIND_VOWEL || def->kind == IDTTS_KIND_DIPHTHONG;
+}
+
+bool idtts_phone_is_pause(idtts_phone_t phone)
+{
+    return idtts_phone_def(phone)->kind == IDTTS_KIND_PAUSE;
+}
+
+bool idtts_phone_is_sonorant(idtts_phone_t phone)
+{
+    idtts_phone_kind_t kind = (idtts_phone_kind_t)idtts_phone_def(phone)->kind;
+    return kind == IDTTS_KIND_VOWEL || kind == IDTTS_KIND_DIPHTHONG ||
+           kind == IDTTS_KIND_NASAL || kind == IDTTS_KIND_LIQUID ||
+           kind == IDTTS_KIND_GLIDE || kind == IDTTS_KIND_TRILL ||
+           kind == IDTTS_KIND_TAP;
+}
+
+const char *idtts_phone_name(idtts_phone_t phone)
+{
+    if ((unsigned)phone >= (unsigned)IDTTS_PH_COUNT) {
+        return "unknown";
+    }
+    return PHONE_NAMES[phone];
+}

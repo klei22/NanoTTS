@@ -1,0 +1,45 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        cc: [gcc, clang]
+        libm: [ON, OFF]
+    runs-on: ubuntu-latest
+    env:
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=MinSizeRel
+          -DIDTTS_USE_LIBM=${{ matrix.libm }}
+      - run: cmake --build build --parallel
+      - run: ctest --test-dir build --output-on-failure
+
+  compact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=MinSizeRel
+          -DIDTTS_ENABLE_TEXT_FRONTEND=OFF
+          -DIDTTS_USE_LIBM=OFF
+          -DIDTTS_MAX_EVENTS=128
+          -DIDTTS_CONTEXT_BYTES=1024
+          -DIDTTS_AUDIO_BLOCK=64
+          -DIDTTS_BUILD_CLI=OFF
+          -DIDTTS_BUILD_EXAMPLES=OFF
+      - run: cmake --build build --parallel
+      - run: ctest --test-dir build --output-on-failure
+
+  makefile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make USE_LIBM=0
+      - run: ./build-make/idtts --text "selamat pagi" -o smoke.wav
