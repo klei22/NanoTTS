@@ -2,19 +2,36 @@ CC ?= cc
 AR ?= ar
 CFLAGS ?= -Os -std=c99 -Wall -Wextra -Wpedantic
 
+# Select text modules at compile time. TEXT_FRONTEND=0 produces an IPA-only
+# library; otherwise enable at least one language.
 TEXT_FRONTEND ?= 1
+LANG_ID ?= 1
+LANG_SW ?= 1
 USE_LIBM ?= 1
 MAX_EVENTS ?= 512
 CONTEXT_BYTES ?= 3072
 AUDIO_BLOCK ?= 128
 
+BUILD ?= build-make
+TEST_BUILD ?= build-test
+
+ifeq ($(TEXT_FRONTEND),0)
+LANG_ID := 0
+LANG_SW := 0
+endif
+ifeq ($(TEXT_FRONTEND)$(LANG_ID)$(LANG_SW),100)
+$(error TEXT_FRONTEND=1 requires LANG_ID=1 and/or LANG_SW=1)
+endif
+
 CPPFLAGS ?=
 CPPFLAGS += -Iinclude -Isrc \
-	-DIDTTS_ENABLE_TEXT_FRONTEND=$(TEXT_FRONTEND) \
-	-DIDTTS_USE_LIBM=$(USE_LIBM) \
-	-DIDTTS_MAX_EVENTS=$(MAX_EVENTS) \
-	-DIDTTS_CONTEXT_BYTES=$(CONTEXT_BYTES) \
-	-DIDTTS_AUDIO_BLOCK=$(AUDIO_BLOCK)
+	-DNANOTTS_ENABLE_TEXT_FRONTEND=$(TEXT_FRONTEND) \
+	-DNANOTTS_ENABLE_LANG_ID=$(LANG_ID) \
+	-DNANOTTS_ENABLE_LANG_SW=$(LANG_SW) \
+	-DNANOTTS_USE_LIBM=$(USE_LIBM) \
+	-DNANOTTS_MAX_EVENTS=$(MAX_EVENTS) \
+	-DNANOTTS_CONTEXT_BYTES=$(CONTEXT_BYTES) \
+	-DNANOTTS_AUDIO_BLOCK=$(AUDIO_BLOCK)
 
 ifeq ($(USE_LIBM),1)
 LDLIBS ?= -lm
@@ -22,41 +39,59 @@ else
 LDLIBS ?=
 endif
 
-BUILD := build-make
 LIB_OBJS := \
-	$(BUILD)/idtts.o \
-	$(BUILD)/idtts_ipa.o \
-	$(BUILD)/idtts_voice.o \
-	$(BUILD)/idtts_synth.o
+	$(BUILD)/nanotts.o \
+	$(BUILD)/nanotts_language.o \
+	$(BUILD)/nanotts_ipa.o \
+	$(BUILD)/nanotts_voice.o \
+	$(BUILD)/nanotts_synth.o
+
 ifeq ($(TEXT_FRONTEND),1)
-LIB_OBJS += $(BUILD)/idtts_g2p.o
+LIB_OBJS += $(BUILD)/lang/nanotts_lang_common.o
+ifeq ($(LANG_ID),1)
+LIB_OBJS += $(BUILD)/lang/nanotts_lang_id.o
+endif
+ifeq ($(LANG_SW),1)
+LIB_OBJS += $(BUILD)/lang/nanotts_lang_sw.o
+endif
 endif
 
 .PHONY: all clean test size
-all: $(BUILD)/idtts
+all: $(BUILD)/nanotts
 
 $(BUILD):
+	mkdir -p $@
+
+$(BUILD)/lang:
 	mkdir -p $@
 
 $(BUILD)/%.o: src/%.c | $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/libidtts.a: $(LIB_OBJS)
-	$(AR) rcs $@ $^
-
-$(BUILD)/idtts_cli.o: tools/idtts_cli.c | $(BUILD)
+$(BUILD)/lang/%.o: src/lang/%.c | $(BUILD)/lang
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/idtts: $(BUILD)/idtts_cli.o $(BUILD)/libidtts.a
+$(BUILD)/libnanotts.a: $(LIB_OBJS)
+	$(AR) rcs $@ $^
+
+$(BUILD)/nanotts_cli.o: tools/nanotts_cli.c | $(BUILD)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/nanotts: $(BUILD)/nanotts_cli.o $(BUILD)/libnanotts.a
 	$(CC) $(CFLAGS) $^ $(LDLIBS) -o $@
 
 test:
-	cmake -S . -B build -DCMAKE_BUILD_TYPE=MinSizeRel
-	cmake --build build --parallel
-	ctest --test-dir build --output-on-failure
+	cmake -S . -B $(TEST_BUILD) \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DNANOTTS_ENABLE_TEXT_FRONTEND=$(if $(filter 1,$(TEXT_FRONTEND)),ON,OFF) \
+		-DNANOTTS_ENABLE_LANG_ID=$(if $(filter 1,$(LANG_ID)),ON,OFF) \
+		-DNANOTTS_ENABLE_LANG_SW=$(if $(filter 1,$(LANG_SW)),ON,OFF) \
+		-DNANOTTS_USE_LIBM=$(if $(filter 1,$(USE_LIBM)),ON,OFF)
+	cmake --build $(TEST_BUILD) --parallel
+	ctest --test-dir $(TEST_BUILD) --output-on-failure
 
-size: $(BUILD)/libidtts.a
+size: $(BUILD)/libnanotts.a
 	size $(LIB_OBJS)
 
 clean:
-	rm -rf build build-* 
+	rm -rf build build-*

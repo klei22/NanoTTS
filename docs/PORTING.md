@@ -1,171 +1,219 @@
-# Porting to an MCU
+# Porting NanoTTS to an MCU
 
 ## Runtime requirements
 
-The `idtts` library requires:
+The library requires:
 
 - a C99 compiler;
 - 8-bit bytes, fixed-width integer types, and at least 32-bit arithmetic;
 - single-precision floating point;
 - `memset` and `strlen` from the C library;
-- a caller-owned `idtts_t` context and a synchronous PCM callback.
+- a caller-owned `nanotts_t` context;
+- a synchronous signed-PCM callback.
 
 It does not require a heap, files, sockets, threads, clocks, locale support, or
-an audio library. The desktop CLI is separate and is not part of an MCU build.
+an audio library. The desktop CLI is separate from MCU builds.
 
-## Add the sources directly
+## Source selection without CMake
 
-For build systems that do not consume CMake, compile:
-
-```text
-src/idtts.c
-src/idtts_ipa.c
-src/idtts_voice.c
-src/idtts_synth.c
-src/idtts_g2p.c       optional
-```
-
-Add `include` and `src` to the include path. Define:
+Always compile the common runtime:
 
 ```text
-IDTTS_ENABLE_TEXT_FRONTEND=1 or 0
-IDTTS_USE_LIBM=1 or 0
-IDTTS_MAX_EVENTS=<capacity>
-IDTTS_CONTEXT_BYTES=<opaque context size>
-IDTTS_AUDIO_BLOCK=<callback block samples>
+src/nanotts.c
+src/nanotts_language.c
+src/nanotts_ipa.c
+src/nanotts_voice.c
+src/nanotts_synth.c
 ```
 
-When `IDTTS_USE_LIBM=1`, link the target math library where required. With it
-set to zero, the renderer uses internal approximations and has no
-transcendental math-library calls.
+For text input, also compile:
+
+```text
+src/lang/nanotts_lang_common.c
+src/lang/nanotts_lang_id.c       when Indonesian is enabled
+src/lang/nanotts_lang_sw.c       when Kiswahili is enabled
+```
+
+Add `include` and `src` to the include path. Define consistently for the
+library and every consumer of the public header:
+
+```text
+NANOTTS_ENABLE_TEXT_FRONTEND=1 or 0
+NANOTTS_ENABLE_LANG_ID=1 or 0
+NANOTTS_ENABLE_LANG_SW=1 or 0
+NANOTTS_USE_LIBM=1 or 0
+NANOTTS_MAX_EVENTS=<capacity>
+NANOTTS_CONTEXT_BYTES=<opaque context bytes>
+NANOTTS_AUDIO_BLOCK=<callback samples>
+```
+
+When `NANOTTS_ENABLE_TEXT_FRONTEND=0`, omit all language files. When it is one,
+compile at least one language. `NANOTTS_USE_LIBM=1` may require linking the
+target math library; zero uses internal approximations.
+
+## Language profiles and overhead
+
+Choose the smallest required build:
+
+| Profile | Text sources | Text dispatch |
+|---|---|---|
+| Indonesian-only | common + `lang_id` | direct call |
+| Kiswahili-only | common + `lang_sw` | direct call |
+| dual-language | common + both | one switch per text utterance |
+| IPA-only | none | text API disabled |
+
+The DSP renderer is identical in every profile. Language selection is not
+checked in the phone, 5 ms frame, or sample loop.
+
+At runtime, initialize a text build with its selected language:
+
+```c
+nanotts_init(&tts, 16000u, NANOTTS_LANG_KISWAHILI);
+```
+
+Use `NANOTTS_LANG_NONE` for an IPA-only context.
 
 ## Memory tuning
 
 The dominant RAM items are the event array, filter state, and PCM callback
-block. Useful starting configurations are:
+block. Useful starting points are:
 
-| Configuration | Events | Context | Callback block | Front end |
+| Configuration | Events | Public context | Callback block | Input |
 |---|---:|---:|---:|---|
-| default | 512 | 3072 B | 128 samples | IPA + text |
-| compact | 128 | 1024 B | 64 samples | IPA only |
-| very short prompts | 64 | 768 B tested here | 32 samples | IPA only |
+| default | 512 | 3072 B | 128 samples | IPA + selected text modules |
+| compact | 128 | 1024 B | 64 samples | IPA or one short-text module |
+| very short prompts | 64 | target-dependent | 32 samples | precomputed IPA/events |
 
-The values are compile-time parameters, and structure padding differs by ABI.
-The source contains a compile-time assertion that rejects an undersized public
-context. Start conservatively, compile for the actual target, inspect the map
-file, and reduce `IDTTS_CONTEXT_BYTES` only after the build proves it fits.
+Structure padding differs by ABI. A compile-time assertion rejects an
+undersized public context. Start conservatively, build for the actual target,
+inspect the linker map, and then reduce `NANOTTS_CONTEXT_BYTES`.
 
-Each event is four bytes. Reducing `IDTTS_MAX_EVENTS` from 512 to 128 therefore
-saves 1536 bytes before ABI padding. Reducing `IDTTS_AUDIO_BLOCK` from 128 to 64
-saves another 128 bytes.
+Each event is four bytes. Reducing `NANOTTS_MAX_EVENTS` from 512 to 128 saves
+1536 bytes before padding. Reducing `NANOTTS_AUDIO_BLOCK` from 128 to 64 saves
+another 128 bytes.
+
+The text modules use bounded word-local arrays on the call stack. Account for
+those in task stack sizing, especially when number expansion recursively emits
+words.
 
 ## Audio callback
 
 The renderer calls the callback synchronously from the task that invoked
-`idtts_speak_ipa` or `idtts_speak_text`:
+`nanotts_speak_ipa`, `nanotts_speak_text`, or `nanotts_render_events`:
 
 ```c
 static int audio_write(void *user, const int16_t *samples, size_t count)
 {
-    audio_ring_t *ring = user;
-
-    /* Block until DMA has room, or copy immediately into a ring buffer. */
+    audio_ring_t *ring = (audio_ring_t *)user;
     return audio_ring_write(ring, samples, count) ? 0 : 1;
 }
 ```
 
-The supplied buffer belongs to `idtts` and is reused after the callback returns.
-Copy or consume it before returning. Do not retain the pointer. A nonzero return
-aborts rendering with `IDTTS_ERR_CALLBACK_ABORTED`.
+The supplied buffer is reused after the callback returns. Copy or consume it
+before returning. A nonzero result aborts with
+`NANOTTS_ERR_CALLBACK_ABORTED`.
 
-Call synthesis from a normal task, not an interrupt. The renderer performs many
-floating-point operations and may block in the callback. DMA completion
-interrupts should only advance or refill a separate audio queue.
+Call synthesis from a normal task, not an interrupt. DMA completion interrupts
+should only advance or refill a separate queue.
 
 ## Audio settings for clarity
 
-Use 16 kHz when flash/CPU and the output path permit it. The Indonesian
-fricatives and affricates rely on energy above the 4 kHz Nyquist limit of an
-8 kHz build. Keep the analog amplifier and speaker below clipping; the 0.2.0
-voice deliberately leaves digital headroom. A small loudspeaker enclosure can
-remove low vowel energy or exaggerate the 3--6 kHz frication band, so perform
-the final listening test on the actual transducer rather than desktop
-headphones alone.
-
-## Common output paths
+Use 16 kHz when CPU and the output path permit it. Fricatives and affricates in
+both current languages rely on energy above the 4 kHz Nyquist limit of an 8 kHz
+build. Keep the amplifier and speaker below clipping. Small enclosures can
+remove vowel energy or exaggerate frication, so conduct final intelligibility
+tests on the production transducer.
 
 ### I2S
 
-Configure mono signed 16-bit PCM at the same sample rate passed to
-`idtts_init`. Queue each callback block to the I2S DMA driver. For a mono-to-
-stereo peripheral, duplicate each sample or configure the peripheral's mono
-slot mode.
+Configure mono signed 16-bit PCM at the same rate passed to `nanotts_init`.
+Queue callback blocks to DMA. For a stereo-only peripheral, duplicate samples
+or use a mono slot mode.
 
 ### DAC
 
-Convert signed PCM to the DAC's unsigned range, optionally with a simple
-low-pass reconstruction filter:
+Convert signed PCM to the DAC's unsigned range:
 
 ```c
 uint16_t dac12 = (uint16_t)(((int32_t)sample + 32768) >> 4);
 ```
 
+Use an appropriate reconstruction filter and amplifier biasing.
+
 ### PWM
 
-Bias signed PCM to unsigned duty cycle, update from a timer/DMA stream, and use
-an analog low-pass filter. Keep the PWM carrier well above the audio band.
+Bias signed PCM to unsigned duty cycle, update from timer/DMA, and low-pass the
+output. Keep the PWM carrier well above the audio band.
 
 ## CPU considerations
 
-- A Cortex-M4F/M7, ESP32-class core, or MCU with an FPU is the easiest target.
-- `IDTTS_USE_LIBM=OFF` avoids thousands of trigonometric library calls per
-  second and is recommended for small MCUs.
-- The renderer still uses float multiplies and divisions. Cortex-M0/M0+ targets
-  need an on-target benchmark; they may require a lower sample rate, higher
-  clock, or a future fixed-point backend.
-- Build with optimization and section garbage collection, for example
+- Cortex-M4F/M7, ESP32-class cores, and other FPU-equipped MCUs are easiest.
+- `NANOTTS_USE_LIBM=OFF` avoids runtime transcendental library calls.
+- The renderer still uses float multiplies and divisions; benchmark M0/M0+
+  targets at the final sample rate and clock.
+- Build with optimization and section garbage collection, such as
   `-Os -ffunction-sections -fdata-sections` and linker `--gc-sections`.
+- Measure real-time factor during the longest supported utterance, not only an
+  isolated vowel.
 
-## CMake cross-build example
+## CMake cross-build examples
+
+Kiswahili-only text build:
 
 ```sh
-cmake -S . -B build-arm \
+cmake -S . -B build-arm-sw \
   -DCMAKE_TOOLCHAIN_FILE=path/to/arm-none-eabi.cmake \
   -DCMAKE_BUILD_TYPE=MinSizeRel \
-  -DIDTTS_BUILD_CLI=OFF \
-  -DIDTTS_BUILD_TESTS=OFF \
-  -DIDTTS_BUILD_EXAMPLES=OFF \
-  -DIDTTS_ENABLE_TEXT_FRONTEND=OFF \
-  -DIDTTS_USE_LIBM=OFF \
-  -DIDTTS_MAX_EVENTS=128 \
-  -DIDTTS_CONTEXT_BYTES=1024 \
-  -DIDTTS_AUDIO_BLOCK=64
-cmake --build build-arm
+  -DNANOTTS_BUILD_CLI=OFF \
+  -DNANOTTS_BUILD_TESTS=OFF \
+  -DNANOTTS_BUILD_EXAMPLES=OFF \
+  -DNANOTTS_ENABLE_LANG_ID=OFF \
+  -DNANOTTS_ENABLE_LANG_SW=ON \
+  -DNANOTTS_USE_LIBM=OFF \
+  -DNANOTTS_MAX_EVENTS=128 \
+  -DNANOTTS_CONTEXT_BYTES=1024 \
+  -DNANOTTS_AUDIO_BLOCK=64
+cmake --build build-arm-sw
 ```
 
-The resulting static library is `libidtts.a`.
+IPA-only build:
 
-## Supplying IPA without eSpeak on the MCU
+```sh
+cmake -S . -B build-arm-ipa \
+  -DCMAKE_TOOLCHAIN_FILE=path/to/arm-none-eabi.cmake \
+  -DCMAKE_BUILD_TYPE=MinSizeRel \
+  -DNANOTTS_BUILD_CLI=OFF \
+  -DNANOTTS_BUILD_TESTS=OFF \
+  -DNANOTTS_BUILD_EXAMPLES=OFF \
+  -DNANOTTS_ENABLE_TEXT_FRONTEND=OFF \
+  -DNANOTTS_USE_LIBM=OFF \
+  -DNANOTTS_MAX_EVENTS=128 \
+  -DNANOTTS_CONTEXT_BYTES=1024 \
+  -DNANOTTS_AUDIO_BLOCK=64
+cmake --build build-arm-ipa
+```
 
-Several deployment patterns are possible:
+The output is `libnanotts.a`.
 
-1. Generate IPA on a server/phone/host and send UTF-8 IPA to the MCU.
-2. Precompute IPA for prompts during the firmware build and store the strings in
-   flash.
-3. Enable the independent built-in Indonesian text front end on the MCU.
-4. Store normalized `idtts_event_t` arrays and call `idtts_render_events`, which
-   removes UTF-8 parsing and pronunciation ambiguity from runtime behavior.
+## Deployment patterns
 
-The third option is the most self-contained; the fourth is the smallest and
-most deterministic for a known prompt set.
+1. Generate IPA on a server, phone, or host and send it to the MCU.
+2. Precompute IPA during the firmware build and store strings in flash.
+3. Compile one built-in language module for open-ended on-device text.
+4. Store normalized `nanotts_event_t` arrays and call
+   `nanotts_render_events` for fixed, prevalidated prompts.
+
+The third option is self-contained. The fourth is the smallest and most
+deterministic for a fixed prompt set.
 
 ## Target validation checklist
 
-- Verify the configured sample rate and actual peripheral clock.
+- Verify sample rate and peripheral clock.
 - Confirm callback blocks do not underrun.
-- Run strict IPA tests on target, including UTF-8 symbols.
-- Measure stack, static RAM, flash, and real-time factor from the linker map and
-  cycle counter.
-- Listen to every required phone and all critical product phrases.
-- Test maximum configured event count and callback abortion.
-- Test with the exact optimization and floating-point flags used in release.
+- Confirm the intended language appears in `nanotts_language_available`.
+- Test strict IPA and UTF-8 on target.
+- Measure task stack, static RAM, flash, cycles, and real-time factor.
+- Listen to every required phone and every safety-critical phrase.
+- Test maximum event count, long words, number expansion, and callback abortion.
+- Test the exact release optimization and floating-point flags.
+- Run native-listener transcription tests for each shipped language.

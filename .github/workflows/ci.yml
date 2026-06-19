@@ -3,7 +3,7 @@ name: ci
 on: [push, pull_request]
 
 jobs:
-  test:
+  dual-language:
     strategy:
       matrix:
         cc: [gcc, clang]
@@ -16,30 +16,50 @@ jobs:
       - run: >-
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=MinSizeRel
-          -DIDTTS_USE_LIBM=${{ matrix.libm }}
+          -DNANOTTS_USE_LIBM=${{ matrix.libm }}
       - run: cmake --build build --parallel
       - run: ctest --test-dir build --output-on-failure
+      - run: ./build/nanotts --lang id --text "selamat pagi" -o id.wav
+      - run: ./build/nanotts --lang sw --text "habari yako" -o sw.wav
 
-  compact:
+  module-selection:
+    strategy:
+      matrix:
+        include:
+          - profile: id
+            text: ON
+            id: ON
+            sw: OFF
+          - profile: sw
+            text: ON
+            id: OFF
+            sw: ON
+          - profile: ipa
+            text: OFF
+            id: OFF
+            sw: OFF
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: >-
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=MinSizeRel
-          -DIDTTS_ENABLE_TEXT_FRONTEND=OFF
-          -DIDTTS_USE_LIBM=OFF
-          -DIDTTS_MAX_EVENTS=128
-          -DIDTTS_CONTEXT_BYTES=1024
-          -DIDTTS_AUDIO_BLOCK=64
-          -DIDTTS_BUILD_CLI=OFF
-          -DIDTTS_BUILD_EXAMPLES=OFF
+          -DNANOTTS_ENABLE_TEXT_FRONTEND=${{ matrix.text }}
+          -DNANOTTS_ENABLE_LANG_ID=${{ matrix.id }}
+          -DNANOTTS_ENABLE_LANG_SW=${{ matrix.sw }}
+          -DNANOTTS_USE_LIBM=OFF
+          -DNANOTTS_MAX_EVENTS=128
+          -DNANOTTS_CONTEXT_BYTES=1024
+          -DNANOTTS_AUDIO_BLOCK=64
+          -DNANOTTS_BUILD_EXAMPLES=OFF
       - run: cmake --build build --parallel
       - run: ctest --test-dir build --output-on-failure
+      - run: ./build/nanotts --list-languages
 
   makefile:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: make USE_LIBM=0
-      - run: ./build-make/idtts --text "selamat pagi" -o smoke.wav
+      - run: ./build-make/nanotts --lang id --text "selamat pagi" -o id.wav
+      - run: ./build-make/nanotts --lang sw --text "habari yako" -o sw.wav

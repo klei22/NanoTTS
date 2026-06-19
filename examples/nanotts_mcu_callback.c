@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT */
-#include "idtts/idtts.h"
+#include "nanotts/nanotts.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -16,26 +16,26 @@ static int audio_write(void *user, const int16_t *samples, size_t count)
 
 int main(void)
 {
-    static idtts_t tts;
-    idtts_options_t options;
-    idtts_parse_info_t parse;
+    static nanotts_t tts;
+    nanotts_options_t options;
+    nanotts_parse_info_t parse;
     uint64_t total_samples = 0u;
-    idtts_result_t result;
+    nanotts_result_t result;
 
-    result = idtts_init(&tts, 16000u);
-    if (result != IDTTS_OK) return 1;
+    result = nanotts_init(&tts, 16000u, NANOTTS_LANG_NONE);
+    if (result != NANOTTS_OK) return 1;
 
-    idtts_default_options(&options);
-    result = idtts_speak_ipa(
+    nanotts_default_options(&options);
+    result = nanotts_speak_ipa(
         &tts,
         "s_ə_l_ˈa_m_a_t p_ˈa_ɡ_i",
-        IDTTS_NPOS,
+        NANOTTS_NPOS,
         &options,
         audio_write,
         &total_samples,
         &parse);
-    if (result != IDTTS_OK) {
-        fprintf(stderr, "%s\n", idtts_strerror(result));
+    if (result != NANOTTS_OK) {
+        fprintf(stderr, "%s\n", nanotts_strerror(result));
         return 1;
     }
 

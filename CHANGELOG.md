@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.3.0 — 2026-06-19
+
+- Renamed the project, library, executable, include path, API prefix, package,
+  build options, and documentation from idtts to NanoTTS / `nanotts`.
+- Added explicit per-context text-language selection through
+  `nanotts_init(..., language)` and `nanotts_set_language`.
+- Added compile-time language discovery and selection APIs.
+- Split text processing into independently removable language modules under
+  `src/lang/`, while retaining one shared IPA parser and acoustic renderer.
+- Added Kiswahili (`sw`) text support with regular grapheme-to-phone rules,
+  `ch/sh/ny/ng'/ng/th/dh/gh/kh`, prenasalized sequences, adjacent-vowel
+  handling, penultimate stress, syllabic-nasal events, numbers, acronyms, and
+  punctuation-aware phrase flags.
+- Added shared phones and IPA aliases for `/θ/`, `/ð/`, and `/ɣ/`, plus the
+  combining syllabic mark for `m̩`, `n̩`, and `ŋ̍`.
+- Added dual-language, Indonesian-only, Kiswahili-only, and IPA-only build
+  profiles. A dual-language build dispatches once per text parse; a
+  one-language build compiles to a direct parser call; the renderer has no
+  language-dependent branch.
+- Added `--lang`, `--list-languages`, language-selectable `setup.sh` profiles,
+  modular CMake/Make options, a language-module template, a language porting
+  guide, Kiswahili smoke corpus, and profile-specific CI coverage.
+- Preserved the clean-room MIT runtime boundary: no eSpeak code, rules,
+  dictionaries, voice data, or generated corpora are included.
+
 ## 0.2.1 — 2026-06-19
 
 - Added a portable `setup.sh` wrapper for parallel Makefile builds and the
@@ -20,13 +45,10 @@
 - Shortened word-boundary pauses, differentiated comma/phrase timing, and
   decayed filter state through pauses to prevent stale-formant clicks.
 - Reduced stress exaggeration and made phrase pitch progression time-based.
-- Added `IDTTS_FINAL_AUTO` and per-phrase question flags for punctuation-aware
-  rising and falling contours in both text and IPA input.
+- Added automatic punctuation-aware rising and falling contours.
 - Added Indonesian spelling of all-uppercase acronyms such as `GPS`.
-- Added regression tests for level balance, punctuation timing, acronym
-  expansion, question flags, and the automatic tone behavior.
-- Added a 50-case intelligibility corpus, reproducible metric tool, listening
-  guidance, and a detailed evaluation record.
+- Added regression tests, a 50-case Indonesian evaluation corpus, listening
+  guidance, and a detailed objective analysis record.
 
 ## 0.1.0 — 2026-06-19
 

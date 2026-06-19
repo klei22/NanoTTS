@@ -78,20 +78,23 @@ def summarize(rows: list[dict], system: str) -> dict[str, float]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--idtts", type=pathlib.Path, default=pathlib.Path("build/idtts"))
+    parser.add_argument("--nanotts", type=pathlib.Path, default=pathlib.Path("build/nanotts"))
     parser.add_argument("--baseline", type=pathlib.Path,
-                        help="optional older idtts CLI for paired comparison")
+                        help="optional older nanotts CLI for paired comparison")
+    parser.add_argument("--lang", choices=("id", "sw"), default="id",
+                        help="built-in text module and default eSpeak voice")
+    parser.add_argument("--voice", help="override the eSpeak voice")
     parser.add_argument("--corpus", type=pathlib.Path,
-                        default=pathlib.Path("tests/data/indonesian_intelligibility.tsv"))
+                        default=pathlib.Path("tests/data/id_intelligibility.tsv"))
     parser.add_argument("--output", type=pathlib.Path,
                         default=pathlib.Path("build/intelligibility-eval"))
     parser.add_argument("--espeak", nargs="?", const="espeak-ng",
                         help="also render external eSpeak IPA and reference audio")
     args = parser.parse_args()
 
-    candidate = args.idtts.resolve()
+    candidate = args.nanotts.resolve()
     if not candidate.is_file():
-        raise SystemExit(f"idtts CLI not found: {candidate}")
+        raise SystemExit(f"nanotts CLI not found: {candidate}")
     baseline = args.baseline.resolve() if args.baseline else None
     if baseline and not baseline.is_file():
         raise SystemExit(f"baseline CLI not found: {baseline}")
@@ -115,16 +118,19 @@ def main() -> int:
         stem = f"{row['id']}_{row['category']}"
         text = row["text"]
         candidate_wav = args.output / "candidate_text" / f"{stem}.wav"
-        run([str(candidate), "--text", text, "-o", str(candidate_wav)])
+        run([str(candidate), "--lang", args.lang, "--text", text,
+             "-o", str(candidate_wav)])
         record = dict(row)
         record["candidate_text"] = metrics(candidate_wav)
         if baseline:
             wav = args.output / "baseline_text" / f"{stem}.wav"
-            run([str(baseline), "--text", text, "-o", str(wav)])
+            run([str(baseline), "--lang", args.lang, "--text", text,
+                 "-o", str(wav)])
             record["baseline_text"] = metrics(wav)
         if espeak:
             generated = subprocess.run(
-                [espeak, "-q", "-v", "id", "--ipa=1", "--sep=_", text],
+                [espeak, "-q", "-v", args.voice or args.lang,
+                 "--ipa=1", "--sep=_", text],
                 check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 text=True, encoding="utf-8").stdout.strip()
             record["ipa"] = generated
@@ -132,7 +138,8 @@ def main() -> int:
             run([str(candidate), "--ipa", generated, "-o", str(wav)])
             record["candidate_ipa"] = metrics(wav)
             wav = args.output / "espeak_reference" / f"{stem}.wav"
-            run([espeak, "-v", "id", "-s", "165", "-w", str(wav), text])
+            run([espeak, "-v", args.voice or args.lang, "-s", "165",
+                 "-w", str(wav), text])
             record["espeak_reference"] = metrics(wav)
         results.append(record)
 

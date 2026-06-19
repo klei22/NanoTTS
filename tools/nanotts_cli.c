@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT */
-#include "idtts/idtts.h"
+#include "nanotts/nanotts.h"
 
 #include <errno.h>
 #include <stdint.h>
@@ -125,17 +125,20 @@ static long parse_long(const char *text, const char *name, long minimum, long ma
 static void print_usage(FILE *file)
 {
     fprintf(file,
-        "idtts - compact Indonesian IPA/text-to-speech\n\n"
+        "NanoTTS - compact multilingual IPA/text-to-speech\n\n"
         "Usage:\n"
-        "  idtts --ipa IPA -o speech.wav [options]\n"
-        "  idtts --text TEXT -o speech.wav [options]\n"
-        "  espeak-ng -q -v id --ipa=1 --sep=_ TEXT | \\\n"
-        "    idtts --ipa-file - -o speech.wav\n\n"
+        "  nanotts --lang id --text TEXT -o speech.wav [options]\n"
+        "  nanotts --lang sw --text TEXT -o speech.wav [options]\n"
+        "  nanotts --ipa IPA -o speech.wav [options]\n"
+        "  espeak -q -v sw --ipa=1 --sep=_ TEXT | \\\n"
+        "    nanotts --ipa-file - -o speech.wav\n\n"
         "Input:\n"
-        "  --ipa STRING            Speak the espeak-id-ipa/1 subset\n"
-        "  --text STRING           Use the built-in Indonesian G2P\n"
+        "  --lang CODE             Text language: id or sw (required for text)\n"
+        "  --ipa STRING            Speak the supported IPA subset\n"
+        "  --text STRING           Use the selected built-in text module\n"
         "  --ipa-file PATH         Read IPA from PATH, or - for stdin\n"
-        "  --text-file PATH        Read text from PATH, or - for stdin\n\n"
+        "  --text-file PATH        Read text from PATH, or - for stdin\n"
+        "  --list-languages        Show text modules compiled into this binary\n\n"
         "Output and voice:\n"
         "  -o, --output PATH       Mono 16-bit PCM WAV output\n"
         "  --sample-rate HZ        8000..24000; default 16000\n"
@@ -150,16 +153,32 @@ static void print_usage(FILE *file)
         "  -h, --help\n");
 }
 
-static void dump_events(const idtts_t *tts)
+static void list_languages(void)
 {
-    const idtts_event_t *events = idtts_events(tts);
-    size_t count = idtts_event_count(tts);
+    size_t index;
+    size_t count = nanotts_compiled_language_count();
+    if (count == 0u) {
+        puts("No text language modules are compiled in (IPA input remains available).");
+        return;
+    }
+    for (index = 0u; index < count; ++index) {
+        nanotts_language_t language = nanotts_compiled_language_at(index);
+        printf("%-3s  %s\n",
+               nanotts_language_code(language),
+               nanotts_language_name(language));
+    }
+}
+
+static void dump_events(const nanotts_t *tts)
+{
+    const nanotts_event_t *events = nanotts_events(tts);
+    size_t count = nanotts_event_count(tts);
     size_t index;
     for (index = 0u; index < count; ++index) {
-        const idtts_event_t *event = &events[index];
+        const nanotts_event_t *event = &events[index];
         printf("%3lu  %-12s flags=0x%02x duration=%u%% pitch_q4=%d\n",
                (unsigned long)index,
-               idtts_phone_name((idtts_phone_t)event->phone),
+               nanotts_phone_name((nanotts_phone_t)event->phone),
                (unsigned)event->flags,
                (unsigned)event->duration_percent,
                (int)event->pitch_semitones_q4);
@@ -175,15 +194,17 @@ int main(int argc, char **argv)
     char *owned_input = NULL;
     size_t input_length = 0u;
     uint32_t sample_rate = 16000u;
-    idtts_options_t options;
-    idtts_t tts;
-    idtts_parse_info_t info;
-    idtts_result_t result;
+    nanotts_language_t language = NANOTTS_LANG_NONE;
+    int language_given = 0;
+    nanotts_options_t options;
+    nanotts_t tts;
+    nanotts_parse_info_t info;
+    nanotts_result_t result;
     wav_writer_t writer;
     int dump_phones = 0;
     int index;
 
-    idtts_default_options(&options);
+    nanotts_default_options(&options);
 
     for (index = 1; index < argc; ++index) {
         const char *arg = argv[index];
@@ -191,14 +212,22 @@ int main(int argc, char **argv)
             !strcmp(arg, "--ipa-file") || !strcmp(arg, "--text-file") ||
             !strcmp(arg, "-o") || !strcmp(arg, "--output") ||
             !strcmp(arg, "--sample-rate") || !strcmp(arg, "--speed") ||
-            !strcmp(arg, "--pitch") || !strcmp(arg, "--volume")) {
+            !strcmp(arg, "--pitch") || !strcmp(arg, "--volume") ||
+            !strcmp(arg, "--lang")) {
             const char *value;
             if (++index >= argc) {
                 fprintf(stderr, "%s requires a value\n", arg);
                 return 2;
             }
             value = argv[index];
-            if (!strcmp(arg, "--ipa")) {
+            if (!strcmp(arg, "--lang")) {
+                language = nanotts_language_from_code(value);
+                language_given = 1;
+                if (language == NANOTTS_LANG_COUNT || language == NANOTTS_LANG_NONE) {
+                    fprintf(stderr, "invalid text language: %s (use id or sw)\n", value);
+                    return 2;
+                }
+            } else if (!strcmp(arg, "--ipa")) {
                 mode = INPUT_IPA;
                 inline_input = value;
             } else if (!strcmp(arg, "--text")) {
@@ -225,21 +254,24 @@ int main(int argc, char **argv)
                 options.volume = (uint8_t)(q > 255L ? 255L : q);
             }
         } else if (!strcmp(arg, "--rise")) {
-            options.final_tone = (uint8_t)IDTTS_FINAL_RISE;
+            options.final_tone = (uint8_t)NANOTTS_FINAL_RISE;
         } else if (!strcmp(arg, "--fall")) {
-            options.final_tone = (uint8_t)IDTTS_FINAL_FALL;
+            options.final_tone = (uint8_t)NANOTTS_FINAL_FALL;
         } else if (!strcmp(arg, "--continue")) {
-            options.final_tone = (uint8_t)IDTTS_FINAL_CONTINUE;
+            options.final_tone = (uint8_t)NANOTTS_FINAL_CONTINUE;
         } else if (!strcmp(arg, "--level")) {
-            options.final_tone = (uint8_t)IDTTS_FINAL_LEVEL;
+            options.final_tone = (uint8_t)NANOTTS_FINAL_LEVEL;
         } else if (!strcmp(arg, "--permissive-ipa")) {
-            options.flags |= IDTTS_OPT_PERMISSIVE_IPA;
+            options.flags |= NANOTTS_OPT_PERMISSIVE_IPA;
         } else if (!strcmp(arg, "--no-autopause")) {
-            options.flags |= IDTTS_OPT_NO_AUTOPAUSE;
+            options.flags |= NANOTTS_OPT_NO_AUTOPAUSE;
         } else if (!strcmp(arg, "--dump-phones")) {
             dump_phones = 1;
+        } else if (!strcmp(arg, "--list-languages")) {
+            list_languages();
+            return 0;
         } else if (!strcmp(arg, "--version")) {
-            printf("idtts %s\n", idtts_version_string());
+            printf("nanotts %s\n", nanotts_version_string());
             return 0;
         } else if (!strcmp(arg, "-h") || !strcmp(arg, "--help")) {
             print_usage(stdout);
@@ -254,6 +286,10 @@ int main(int argc, char **argv)
     if (mode == INPUT_NONE || (inline_input == NULL && input_path == NULL) ||
         (!dump_phones && output_path == NULL)) {
         print_usage(stderr);
+        return 2;
+    }
+    if (mode == INPUT_TEXT && !language_given) {
+        fprintf(stderr, "--lang id or --lang sw is required for text input\n");
         return 2;
     }
     if (inline_input != NULL && input_path != NULL) {
@@ -278,18 +314,19 @@ int main(int argc, char **argv)
         inline_input = owned_input;
     }
 
-    result = idtts_init(&tts, sample_rate);
-    if (result != IDTTS_OK) {
-        fprintf(stderr, "%s\n", idtts_strerror(result));
+    result = nanotts_init(&tts, sample_rate,
+        mode == INPUT_TEXT ? language : NANOTTS_LANG_NONE);
+    if (result != NANOTTS_OK) {
+        fprintf(stderr, "%s\n", nanotts_strerror(result));
         free(owned_input);
         return 1;
     }
 
     if (dump_phones) {
         result = mode == INPUT_IPA
-            ? idtts_parse_ipa(&tts, inline_input, input_length, options.flags, &info)
-            : idtts_parse_text(&tts, inline_input, input_length, &info);
-        if (result == IDTTS_OK) dump_events(&tts);
+            ? nanotts_parse_ipa(&tts, inline_input, input_length, options.flags, &info)
+            : nanotts_parse_text(&tts, inline_input, input_length, &info);
+        if (result == NANOTTS_OK) dump_events(&tts);
     } else {
         if (!wav_begin(&writer, output_path, sample_rate)) {
             perror(output_path);
@@ -297,19 +334,19 @@ int main(int argc, char **argv)
             return 1;
         }
         result = mode == INPUT_IPA
-            ? idtts_speak_ipa(&tts, inline_input, input_length, &options,
+            ? nanotts_speak_ipa(&tts, inline_input, input_length, &options,
                               wav_write, &writer, &info)
-            : idtts_speak_text(&tts, inline_input, input_length, &options,
+            : nanotts_speak_text(&tts, inline_input, input_length, &options,
                                wav_write, &writer, &info);
-        if (!wav_end(&writer) && result == IDTTS_OK) {
+        if (!wav_end(&writer) && result == NANOTTS_OK) {
             fprintf(stderr, "failed while writing %s\n", output_path);
-            result = IDTTS_ERR_CALLBACK_ABORTED;
+            result = NANOTTS_ERR_CALLBACK_ABORTED;
         }
     }
 
-    if (result != IDTTS_OK) {
-        fprintf(stderr, "%s", idtts_strerror(result));
-        if (info.error_byte != IDTTS_NPOS) {
+    if (result != NANOTTS_OK) {
+        fprintf(stderr, "%s", nanotts_strerror(result));
+        if (info.error_byte != NANOTTS_NPOS) {
             fprintf(stderr, " at byte %lu", (unsigned long)info.error_byte);
             if (info.error_codepoint != 0u) {
                 fprintf(stderr, " (U+%04lX)", (unsigned long)info.error_codepoint);

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Check separated Indonesian eSpeak IPA against an idtts CLI build.
+"""Check strict NanoTTS acceptance of separated eSpeak IPA for a corpus.
 
-This is a development/interoperability tool. It does not link either program
-and is not needed by the idtts runtime.
+This is a development interoperability test. eSpeak runs as a separate process;
+its source, rules, voices, and output are not part of the NanoTTS runtime.
 """
-
 from __future__ import annotations
 
 import argparse
@@ -41,18 +40,24 @@ def load_phrases(path: pathlib.Path) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("corpus", type=pathlib.Path,
-                        help="UTF-8 file with one Indonesian phrase per line")
-    parser.add_argument("--idtts", type=pathlib.Path, default=pathlib.Path("build/idtts"),
-                        help="path to the idtts CLI")
+                        help="UTF-8 file with one phrase per line")
+    parser.add_argument("--lang", choices=("id", "sw"), default="id",
+                        help="eSpeak language/voice code; default: id")
+    parser.add_argument("--voice",
+                        help="override the eSpeak voice while retaining --lang metadata")
+    parser.add_argument("--nanotts", type=pathlib.Path,
+                        default=pathlib.Path("build/nanotts"),
+                        help="path to the NanoTTS CLI")
     parser.add_argument("--espeak", help="espeak-ng/espeak executable name or path")
     parser.add_argument("--show", action="store_true",
                         help="print generated IPA for every accepted phrase")
     args = parser.parse_args()
 
     executable = find_espeak(args.espeak)
-    cli = args.idtts.resolve()
+    voice = args.voice or args.lang
+    cli = args.nanotts.resolve()
     if not cli.is_file():
-        raise SystemExit(f"idtts CLI not found: {cli}")
+        raise SystemExit(f"NanoTTS CLI not found: {cli}")
 
     phrases = load_phrases(args.corpus)
     if not phrases:
@@ -61,7 +66,7 @@ def main() -> int:
     failures = 0
     for line_number, phrase in enumerate(phrases, 1):
         generated = subprocess.run(
-            [executable, "-q", "-v", "id", "--ipa=1", "--sep=_", phrase],
+            [executable, "-q", "-v", voice, "--ipa=1", "--sep=_", phrase],
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -75,8 +80,6 @@ def main() -> int:
             continue
 
         ipa = generated.stdout.strip()
-        # A temporary file avoids quoting differences and exercises the same
-        # UTF-8 file path used for corpus-scale checks.
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as tmp:
             tmp.write(ipa)
             tmp_path = pathlib.Path(tmp.name)
@@ -96,11 +99,11 @@ def main() -> int:
             failures += 1
             print(f"{line_number}: {phrase!r}", file=sys.stderr)
             print(f"  IPA: {ipa}", file=sys.stderr)
-            print(f"  idtts: {checked.stderr.strip()}", file=sys.stderr)
+            print(f"  NanoTTS: {checked.stderr.strip()}", file=sys.stderr)
         elif args.show:
             print(f"{phrase}\t{ipa}")
 
-    print(f"checked {len(phrases)} phrase(s); failures: {failures}")
+    print(f"checked {len(phrases)} {args.lang} phrase(s); failures: {failures}")
     return 1 if failures else 0
 
 

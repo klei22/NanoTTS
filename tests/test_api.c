@@ -1,11 +1,18 @@
 /* SPDX-License-Identifier: MIT */
-#include "idtts/idtts.h"
+#include "nanotts/nanotts.h"
 
 #include <assert.h>
 #include <stdint.h>
+#include <string.h>
 
-#ifndef IDTTS_EXPECT_TEXT_FRONTEND
-#define IDTTS_EXPECT_TEXT_FRONTEND 1
+#ifndef NANOTTS_EXPECT_TEXT_FRONTEND
+#define NANOTTS_EXPECT_TEXT_FRONTEND 1
+#endif
+#ifndef NANOTTS_EXPECT_LANG_ID
+#define NANOTTS_EXPECT_LANG_ID 1
+#endif
+#ifndef NANOTTS_EXPECT_LANG_SW
+#define NANOTTS_EXPECT_LANG_SW 1
 #endif
 
 static int abort_immediately(void *user, const int16_t *samples, size_t count)
@@ -18,57 +25,94 @@ static int abort_immediately(void *user, const int16_t *samples, size_t count)
 
 int main(void)
 {
-    idtts_t tts;
-    idtts_options_t options;
-    idtts_parse_info_t info;
-    idtts_result_t result;
-    idtts_event_t event;
+    nanotts_t tts;
+    nanotts_options_t options;
+    nanotts_parse_info_t info;
+    nanotts_result_t result;
+    nanotts_event_t event;
 
-    assert(idtts_init(NULL, 16000u) == IDTTS_ERR_ARGUMENT);
-    assert(idtts_init(&tts, 7999u) == IDTTS_ERR_SAMPLE_RATE);
-    assert(idtts_init(&tts, 24001u) == IDTTS_ERR_SAMPLE_RATE);
-    assert(idtts_init(&tts, 16000u) == IDTTS_OK);
-    assert(idtts_event_capacity() == IDTTS_MAX_EVENTS);
-    assert(idtts_context_bytes() == IDTTS_CONTEXT_BYTES);
-    assert(idtts_sample_rate(&tts) == 16000u);
-    assert(idtts_event_count(&tts) == 0u);
+    assert(nanotts_init(NULL, 16000u, NANOTTS_LANG_NONE) == NANOTTS_ERR_ARGUMENT);
+    assert(nanotts_init(&tts, 7999u, NANOTTS_LANG_NONE) == NANOTTS_ERR_SAMPLE_RATE);
+    assert(nanotts_init(&tts, 24001u, NANOTTS_LANG_NONE) == NANOTTS_ERR_SAMPLE_RATE);
+    assert(nanotts_init(&tts, 16000u, NANOTTS_LANG_COUNT) ==
+           NANOTTS_ERR_LANGUAGE_UNAVAILABLE);
+    assert(nanotts_init(&tts, 16000u, NANOTTS_LANG_NONE) == NANOTTS_OK);
+    assert(nanotts_event_capacity() == NANOTTS_MAX_EVENTS);
+    assert(nanotts_context_bytes() == NANOTTS_CONTEXT_BYTES);
+    assert(nanotts_sample_rate(&tts) == 16000u);
+    assert(nanotts_language(&tts) == NANOTTS_LANG_NONE);
+    assert(nanotts_event_count(&tts) == 0u);
 
-    assert(idtts_parse_ipa(&tts, "a", IDTTS_NPOS, 0u, &info) == IDTTS_OK);
+    assert(nanotts_language_available(NANOTTS_LANG_INDONESIAN) ==
+           NANOTTS_EXPECT_LANG_ID);
+    assert(nanotts_language_available(NANOTTS_LANG_KISWAHILI) ==
+           NANOTTS_EXPECT_LANG_SW);
+    assert(nanotts_language_from_code("id") == NANOTTS_LANG_INDONESIAN);
+    assert(nanotts_language_from_code("Kiswahili") == NANOTTS_LANG_KISWAHILI);
+    assert(nanotts_language_from_code("bogus") == NANOTTS_LANG_COUNT);
+    assert(strcmp(nanotts_language_code(NANOTTS_LANG_KISWAHILI), "sw") == 0);
+    assert(NANOTTS_LANG_SWAHILI == NANOTTS_LANG_KISWAHILI);
+    assert(nanotts_compiled_language_count() ==
+           (size_t)(NANOTTS_EXPECT_LANG_ID + NANOTTS_EXPECT_LANG_SW));
+    if (nanotts_compiled_language_count() > 0u) {
+        assert(nanotts_compiled_language_at(0u) != NANOTTS_LANG_NONE);
+    }
+    assert(nanotts_compiled_language_at(nanotts_compiled_language_count()) ==
+           NANOTTS_LANG_NONE);
+
+#if NANOTTS_EXPECT_LANG_ID
+    assert(nanotts_set_language(&tts, NANOTTS_LANG_INDONESIAN) == NANOTTS_OK);
+    assert(nanotts_language(&tts) == NANOTTS_LANG_INDONESIAN);
+#else
+    assert(nanotts_set_language(&tts, NANOTTS_LANG_INDONESIAN) ==
+           NANOTTS_ERR_LANGUAGE_UNAVAILABLE);
+#endif
+#if NANOTTS_EXPECT_LANG_SW
+    assert(nanotts_set_language(&tts, NANOTTS_LANG_KISWAHILI) == NANOTTS_OK);
+    assert(nanotts_language(&tts) == NANOTTS_LANG_KISWAHILI);
+#else
+    assert(nanotts_set_language(&tts, NANOTTS_LANG_KISWAHILI) ==
+           NANOTTS_ERR_LANGUAGE_UNAVAILABLE);
+#endif
+    assert(nanotts_set_language(&tts, NANOTTS_LANG_NONE) == NANOTTS_OK);
+
+    assert(nanotts_parse_ipa(&tts, "a", NANOTTS_NPOS, 0u, &info) == NANOTTS_OK);
     assert(info.event_count == 1u);
-    idtts_reset(&tts);
-    assert(idtts_event_count(&tts) == 0u);
-    assert(idtts_sample_rate(&tts) == 16000u);
+    nanotts_reset(&tts);
+    assert(nanotts_event_count(&tts) == 0u);
+    assert(nanotts_sample_rate(&tts) == 16000u);
+    assert(nanotts_language(&tts) == NANOTTS_LANG_NONE);
 
-    idtts_default_options(&options);
-    result = idtts_speak_ipa(&tts, "a", IDTTS_NPOS, &options,
+    nanotts_default_options(&options);
+    result = nanotts_speak_ipa(&tts, "a", NANOTTS_NPOS, &options,
                              abort_immediately, NULL, &info);
-    assert(result == IDTTS_ERR_CALLBACK_ABORTED);
+    assert(result == NANOTTS_ERR_CALLBACK_ABORTED);
 
     options.rate_q8 = 95u;
-    assert(idtts_parse_ipa(&tts, "a", IDTTS_NPOS, 0u, &info) == IDTTS_OK);
-    assert(idtts_render_events(&tts, &options, abort_immediately, NULL) ==
-           IDTTS_ERR_ARGUMENT);
+    assert(nanotts_parse_ipa(&tts, "a", NANOTTS_NPOS, 0u, &info) == NANOTTS_OK);
+    assert(nanotts_render_events(&tts, &options, abort_immediately, NULL) ==
+           NANOTTS_ERR_ARGUMENT);
 
     options.rate_q8 = 256u;
     options.pitch_cents = 1201;
-    assert(idtts_render_events(&tts, &options, abort_immediately, NULL) ==
-           IDTTS_ERR_ARGUMENT);
+    assert(nanotts_render_events(&tts, &options, abort_immediately, NULL) ==
+           NANOTTS_ERR_ARGUMENT);
     options.pitch_cents = 0;
 
-    event.phone = (uint8_t)IDTTS_PH_A;
-    event.flags = IDTTS_EVENT_STRESS_PRIMARY;
+    event.phone = (uint8_t)NANOTTS_PH_A;
+    event.flags = NANOTTS_EVENT_STRESS_PRIMARY;
     event.duration_percent = 100u;
     event.pitch_semitones_q4 = 0;
-    assert(idtts_set_events(&tts, &event, 1u) == IDTTS_OK);
-    assert(idtts_event_count(&tts) == 1u);
-    event.phone = (uint8_t)IDTTS_PH_COUNT;
-    assert(idtts_set_events(&tts, &event, 1u) == IDTTS_ERR_ARGUMENT);
-    assert(idtts_set_events(&tts, NULL, 0u) == IDTTS_OK);
-    assert(idtts_event_count(&tts) == 0u);
+    assert(nanotts_set_events(&tts, &event, 1u) == NANOTTS_OK);
+    assert(nanotts_event_count(&tts) == 1u);
+    event.phone = (uint8_t)NANOTTS_PH_COUNT;
+    assert(nanotts_set_events(&tts, &event, 1u) == NANOTTS_ERR_ARGUMENT);
+    assert(nanotts_set_events(&tts, NULL, 0u) == NANOTTS_OK);
+    assert(nanotts_event_count(&tts) == 0u);
 
-    assert(idtts_text_frontend_available() == IDTTS_EXPECT_TEXT_FRONTEND);
-    assert(idtts_version_string() != NULL);
-    assert(idtts_phone_name(IDTTS_PH_NG) != NULL);
-    assert(idtts_strerror(IDTTS_ERR_UTF8) != NULL);
+    assert(nanotts_text_frontend_available() == NANOTTS_EXPECT_TEXT_FRONTEND);
+    assert(nanotts_version_string() != NULL);
+    assert(nanotts_phone_name(NANOTTS_PH_GH) != NULL);
+    assert(nanotts_strerror(NANOTTS_ERR_LANGUAGE_UNAVAILABLE) != NULL);
     return 0;
 }

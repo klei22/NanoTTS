@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT */
-#include "idtts/idtts.h"
+#include "nanotts/nanotts.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -28,19 +28,19 @@ static int collect(void *user, const int16_t *samples, size_t count)
     return 0;
 }
 
-static sink_t render_phrase(uint32_t sample_rate, idtts_final_tone_t tone)
+static sink_t render_phrase(uint32_t sample_rate, nanotts_final_tone_t tone)
 {
-    idtts_t tts;
-    idtts_options_t options;
-    idtts_parse_info_t info;
+    nanotts_t tts;
+    nanotts_options_t options;
+    nanotts_parse_info_t info;
     sink_t sink = { 0u, 0, 2166136261u, 0u };
 
-    assert(idtts_init(&tts, sample_rate) == IDTTS_OK);
-    idtts_default_options(&options);
+    assert(nanotts_init(&tts, sample_rate, NANOTTS_LANG_NONE) == NANOTTS_OK);
+    nanotts_default_options(&options);
     options.final_tone = (uint8_t)tone;
-    assert(idtts_speak_ipa(
-        &tts, "s_ə_l_ˈa_m_a_t p_ˈa_ɡ_i", IDTTS_NPOS,
-        &options, collect, &sink, &info) == IDTTS_OK);
+    assert(nanotts_speak_ipa(
+        &tts, "s_ə_l_ˈa_m_a_t p_ˈa_ɡ_i", NANOTTS_NPOS,
+        &options, collect, &sink, &info) == NANOTTS_OK);
     assert(sink.count > sample_rate / 2u);
     assert(sink.peak > 100);
     assert(sink.peak <= 32767);
@@ -49,40 +49,40 @@ static sink_t render_phrase(uint32_t sample_rate, idtts_final_tone_t tone)
 
 static sink_t render_ipa_text(const char *ipa)
 {
-    idtts_t tts;
-    idtts_options_t options;
-    idtts_parse_info_t info;
+    nanotts_t tts;
+    nanotts_options_t options;
+    nanotts_parse_info_t info;
     sink_t sink = { 0u, 0, 2166136261u, 0u };
 
-    assert(idtts_init(&tts, 16000u) == IDTTS_OK);
-    idtts_default_options(&options);
-    options.final_tone = (uint8_t)IDTTS_FINAL_LEVEL;
-    options.flags = IDTTS_OPT_NO_AUTOPAUSE;
-    assert(idtts_speak_ipa(&tts, ipa, IDTTS_NPOS, &options,
-                           collect, &sink, &info) == IDTTS_OK);
+    assert(nanotts_init(&tts, 16000u, NANOTTS_LANG_NONE) == NANOTTS_OK);
+    nanotts_default_options(&options);
+    options.final_tone = (uint8_t)NANOTTS_FINAL_LEVEL;
+    options.flags = NANOTTS_OPT_NO_AUTOPAUSE;
+    assert(nanotts_speak_ipa(&tts, ipa, NANOTTS_NPOS, &options,
+                           collect, &sink, &info) == NANOTTS_OK);
     return sink;
 }
 
-static sink_t render_ipa_tone(const char *ipa, idtts_final_tone_t tone)
+static sink_t render_ipa_tone(const char *ipa, nanotts_final_tone_t tone)
 {
-    idtts_t tts;
-    idtts_options_t options;
-    idtts_parse_info_t info;
+    nanotts_t tts;
+    nanotts_options_t options;
+    nanotts_parse_info_t info;
     sink_t sink = { 0u, 0, 2166136261u, 0u };
 
-    assert(idtts_init(&tts, 16000u) == IDTTS_OK);
-    idtts_default_options(&options);
+    assert(nanotts_init(&tts, 16000u, NANOTTS_LANG_NONE) == NANOTTS_OK);
+    nanotts_default_options(&options);
     options.final_tone = (uint8_t)tone;
-    assert(idtts_speak_ipa(&tts, ipa, IDTTS_NPOS, &options,
-                           collect, &sink, &info) == IDTTS_OK);
+    assert(nanotts_speak_ipa(&tts, ipa, NANOTTS_NPOS, &options,
+                           collect, &sink, &info) == NANOTTS_OK);
     return sink;
 }
 
 int main(void)
 {
-    idtts_t tts;
-    idtts_options_t options;
-    idtts_event_t all_phones[IDTTS_PH_COUNT - IDTTS_PH_A];
+    nanotts_t tts;
+    nanotts_options_t options;
+    nanotts_event_t all_phones[NANOTTS_PH_COUNT - NANOTTS_PH_A];
     sink_t first;
     sink_t second;
     sink_t all = { 0u, 0, 2166136261u, 0u };
@@ -95,25 +95,25 @@ int main(void)
     sink_t marked_fall;
     size_t index;
 
-    first = render_phrase(16000u, IDTTS_FINAL_FALL);
-    second = render_phrase(16000u, IDTTS_FINAL_FALL);
+    first = render_phrase(16000u, NANOTTS_FINAL_FALL);
+    second = render_phrase(16000u, NANOTTS_FINAL_FALL);
     assert(first.count == second.count);
     assert(first.checksum == second.checksum);
 
-    (void)render_phrase(8000u, IDTTS_FINAL_LEVEL);
-    (void)render_phrase(24000u, IDTTS_FINAL_RISE);
+    (void)render_phrase(8000u, NANOTTS_FINAL_LEVEL);
+    (void)render_phrase(24000u, NANOTTS_FINAL_RISE);
 
-    assert(idtts_init(&tts, 16000u) == IDTTS_OK);
+    assert(nanotts_init(&tts, 16000u, NANOTTS_LANG_NONE) == NANOTTS_OK);
     for (index = 0u; index < ARRAY_COUNT(all_phones); ++index) {
-        all_phones[index].phone = (uint8_t)(IDTTS_PH_A + index);
+        all_phones[index].phone = (uint8_t)(NANOTTS_PH_A + index);
         all_phones[index].flags = 0u;
         all_phones[index].duration_percent = 35u;
         all_phones[index].pitch_semitones_q4 = 0;
     }
-    assert(idtts_set_events(&tts, all_phones, ARRAY_COUNT(all_phones)) == IDTTS_OK);
-    idtts_default_options(&options);
+    assert(nanotts_set_events(&tts, all_phones, ARRAY_COUNT(all_phones)) == NANOTTS_OK);
+    nanotts_default_options(&options);
     options.rate_q8 = 400u;
-    assert(idtts_render_events(&tts, &options, collect, &all) == IDTTS_OK);
+    assert(nanotts_render_events(&tts, &options, collect, &all) == NANOTTS_OK);
     assert(all.count > 1000u);
     assert(all.peak > 100);
     assert(all.peak < 32000);
@@ -127,14 +127,14 @@ int main(void)
     assert(fricative.sum_squares < vowels.sum_squares * 4u);
     assert(vowels.sum_squares < fricative.sum_squares * 4u);
 
-    question_auto = render_phrase(16000u, IDTTS_FINAL_AUTO);
-    question_fall = render_phrase(16000u, IDTTS_FINAL_FALL);
+    question_auto = render_phrase(16000u, NANOTTS_FINAL_AUTO);
+    question_fall = render_phrase(16000u, NANOTTS_FINAL_FALL);
     /* No question punctuation is present here, so AUTO intentionally falls. */
     assert(question_auto.checksum == question_fall.checksum);
 
-    marked_auto = render_ipa_tone("a_p_a?", IDTTS_FINAL_AUTO);
-    marked_rise = render_ipa_tone("a_p_a?", IDTTS_FINAL_RISE);
-    marked_fall = render_ipa_tone("a_p_a?", IDTTS_FINAL_FALL);
+    marked_auto = render_ipa_tone("a_p_a?", NANOTTS_FINAL_AUTO);
+    marked_rise = render_ipa_tone("a_p_a?", NANOTTS_FINAL_RISE);
+    marked_fall = render_ipa_tone("a_p_a?", NANOTTS_FINAL_FALL);
     assert(marked_auto.checksum == marked_rise.checksum);
     assert(marked_auto.checksum != marked_fall.checksum);
     return 0;

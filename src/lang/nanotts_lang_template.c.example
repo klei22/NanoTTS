@@ -1,0 +1,52 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * NanoTTS language-module template.
+ *
+ * Copy this file to nanotts_lang_xx.c, replace XX/xx, and keep all language
+ * work here. A module performs UTF-8 text normalization and G2P only. It emits
+ * common nanotts_event_t phone IDs; it never renders samples itself.
+ */
+#include "lang/nanotts_lang_common.h"
+
+nanotts_result_t nanotts_lang_xx_parse_text(
+    nanotts_impl_t *impl,
+    const char *text,
+    size_t length,
+    nanotts_parse_info_t *info)
+{
+    size_t offset = 0u;
+    bool saw_phone = false;
+
+    impl->event_count = 0u;
+    nanotts_lang_set_info(info, 0u, NANOTTS_NPOS, 0u);
+
+    while (offset < length) {
+        uint32_t cp;
+        size_t width;
+        if (!nanotts_lang_decode_utf8(text, length, offset, &cp, &width)) {
+            nanotts_lang_set_info(info, impl->event_count, offset, 0u);
+            return NANOTTS_ERR_UTF8;
+        }
+
+        /* Replace this demonstration mapping with the language's rules. */
+        if (cp == 'a' || cp == 'A') {
+            if (!nanotts_push_event(
+                    impl, NANOTTS_PH_A, NANOTTS_EVENT_STRESS_PRIMARY,
+                    100u, 0)) {
+                nanotts_lang_set_info(info, impl->event_count, offset, cp);
+                return NANOTTS_ERR_TOO_MANY_EVENTS;
+            }
+            saw_phone = true;
+        } else if (cp == ' ' || cp == '\t') {
+            if (!nanotts_lang_add_pause(
+                    impl, NANOTTS_PH_SHORT_PAUSE, 0u)) {
+                return NANOTTS_ERR_TOO_MANY_EVENTS;
+            }
+        }
+        offset += width;
+    }
+
+    nanotts_lang_trim_trailing_short_pause(impl);
+    nanotts_lang_set_info(info, impl->event_count, NANOTTS_NPOS, 0u);
+    return saw_phone ? NANOTTS_OK : NANOTTS_ERR_EMPTY_INPUT;
+}

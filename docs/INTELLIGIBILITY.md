@@ -1,6 +1,13 @@
-# Intelligibility evaluation for 0.2.0
+# Indonesian intelligibility evaluation inherited from 0.2.0
 
 Validation date: 2026-06-19.
+
+
+> **Scope in NanoTTS 0.3:** this document records the Indonesian acoustic work
+> that produced the shared renderer now used by both modules. It is not a
+> Kiswahili listening study. NanoTTS 0.3 adds Kiswahili parser and inventory
+> validation, but a native-listener Kiswahili transcription study remains
+> required before claiming language-level intelligibility.
 
 ## Scope and caveat
 
@@ -17,7 +24,7 @@ production release.
 
 ## Corpus
 
-`tests/data/indonesian_intelligibility.tsv` contains 50 utterances covering:
+`tests/data/id_intelligibility.tsv` contains 50 utterances covering:
 
 - the vowel inventory and ambiguous written `e`;
 - voiced and voiceless stops, affricates, and fricatives;
@@ -202,8 +209,8 @@ Build the current CLI, then run:
 
 ```sh
 python3 tools/evaluate_intelligibility.py \
-  --idtts build/idtts \
-  --corpus tests/data/indonesian_intelligibility.tsv \
+  --nanotts build/nanotts \
+  --corpus tests/data/id_intelligibility.tsv \
   --output build/intelligibility-eval \
   --espeak espeak-ng
 ```
@@ -212,8 +219,8 @@ To compare another binary:
 
 ```sh
 python3 tools/evaluate_intelligibility.py \
-  --idtts build/idtts \
-  --baseline /path/to/older/idtts \
+  --nanotts build/nanotts \
+  --baseline /path/to/older/nanotts \
   --output build/intelligibility-eval
 ```
 
