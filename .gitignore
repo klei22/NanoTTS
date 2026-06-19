@@ -1,0 +1,60 @@
+# Build trees
+/build/
+/build-*/
+/cmake-build-*/
+/out/
+/dist/
+/install/
+
+# Accidental in-source CMake/CTest output
+/CMakeCache.txt
+/CMakeFiles/
+/CTestTestfile.cmake
+/Testing/
+/cmake_install.cmake
+/CPackConfig.cmake
+/CPackSourceConfig.cmake
+/compile_commands.json
+
+# Native build products
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# Generated audio and analysis artifacts
+*.wav
+*.pcm
+*.raw
+*.png
+
+# Coverage and profiling output
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+*.profdata
+/coverage/
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
