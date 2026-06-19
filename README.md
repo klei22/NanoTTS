@@ -1,6 +1,6 @@
-# idtts
+# NanoTTS (previously idtts)
 
-`idtts` is a compact, clean-room Indonesian speech synthesizer written in
+Currently `NanoTTS` is a compact, clean-room Indonesian speech synthesizer written in
 portable C99. It accepts either a deliberately small IPA profile compatible
 with separated Indonesian eSpeak output, or Indonesian text through an
 independent built-in grapheme-to-phoneme front end. It produces signed 16-bit
