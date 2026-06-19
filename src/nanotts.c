@@ -280,7 +280,7 @@ size_t nanotts_context_bytes(void)
 
 int nanotts_text_frontend_available(void)
 {
-#if NANOTTS_ENABLE_TEXT_FRONTEND && (NANOTTS_ENABLE_LANG_ID || NANOTTS_ENABLE_LANG_SW)
+#if NANOTTS_ENABLE_TEXT_FRONTEND && (NANOTTS_ENABLE_LANG_ID || NANOTTS_ENABLE_LANG_SW || NANOTTS_ENABLE_LANG_ES)
     return 1;
 #else
     return 0;
@@ -328,5 +328,5 @@ const char *nanotts_strerror(nanotts_result_t result)
 
 const char *nanotts_version_string(void)
 {
-    return "0.3.0";
+    return "0.4.0";
 }

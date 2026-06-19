@@ -19,18 +19,19 @@ Build NanoTTS with the repository Makefile and, by default, validate the same
 language selection with CMake/CTest.
 
 Options:
-  --languages SET  Build all, id, sw, or ipa. Default: all.
-                   id = Indonesian; sw = Kiswahili; ipa = no text modules.
+  --languages SET  Build all, id, sw, es, a comma-separated subset, or ipa.
+                   id = Indonesian; sw = Kiswahili; es = Spanish;
+                   ipa = no text modules. Default: all.
   --clean          Remove the selected profile's previous build trees first.
   --no-test        Build only; do not run CMake/CTest.
   -j N, --jobs N   Use N parallel build jobs.
   -h, --help       Show this help text.
 
 Examples:
-  ./setup.sh                         # Indonesian + Kiswahili
-  ./setup.sh --languages sw          # Kiswahili-only text build
-  ./setup.sh --languages id --clean  # clean Indonesian-only build
-  ./setup.sh --languages ipa         # smallest IPA-only build
+  ./setup.sh                            # Indonesian + Kiswahili + Spanish
+  ./setup.sh --languages es             # Spanish-only text build
+  ./setup.sh --languages id,es --clean  # Indonesian + Spanish
+  ./setup.sh --languages ipa            # smallest IPA-only build
 
 MAKE selects an alternative make executable. JOBS sets the default job count.
 NANOTTS_LANGUAGES sets the default language profile. Other Makefile tuning
@@ -59,7 +60,7 @@ detect_jobs() {
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --languages|--language)
-            [ "$#" -ge 2 ] || die "$1 requires all, id, sw, or ipa"
+            [ "$#" -ge 2 ] || die "$1 requires a language set"
             LANGUAGES=$2
             shift
             ;;
@@ -91,22 +92,67 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
+LANG_ID=0
+LANG_SW=0
+LANG_ES=0
+TEXT_FRONTEND=1
+
 case "$LANGUAGES" in
-    all|id,sw|sw,id)
-        PROFILE=all; TEXT_FRONTEND=1; LANG_ID=1; LANG_SW=1
-        ;;
-    id|indonesian)
-        PROFILE=id; TEXT_FRONTEND=1; LANG_ID=1; LANG_SW=0
-        ;;
-    sw|swahili|kiswahili)
-        PROFILE=sw; TEXT_FRONTEND=1; LANG_ID=0; LANG_SW=1
+    all)
+        LANG_ID=1; LANG_SW=1; LANG_ES=1
         ;;
     ipa|none|off)
-        PROFILE=ipa; TEXT_FRONTEND=0; LANG_ID=0; LANG_SW=0
+        TEXT_FRONTEND=0
+        ;;
+    '')
+        die "language set must not be empty"
         ;;
     *)
-        die "invalid language set '$LANGUAGES'; use all, id, sw, or ipa"
+        old_ifs=$IFS
+        IFS=,
+        # Intentional word splitting on the comma-separated profile.
+        set -- $LANGUAGES
+        IFS=$old_ifs
+        for language in "$@"; do
+            case "$language" in
+                id|indonesian)
+                    [ "$LANG_ID" -eq 0 ] || die "duplicate language: id"
+                    LANG_ID=1
+                    ;;
+                sw|swahili|kiswahili)
+                    [ "$LANG_SW" -eq 0 ] || die "duplicate language: sw"
+                    LANG_SW=1
+                    ;;
+                es|spanish|espanol|castellano)
+                    [ "$LANG_ES" -eq 0 ] || die "duplicate language: es"
+                    LANG_ES=1
+                    ;;
+                ipa|none|off)
+                    die "ipa cannot be combined with text languages"
+                    ;;
+                *)
+                    die "invalid language '$language'; use id, sw, es, all, or ipa"
+                    ;;
+            esac
+        done
         ;;
+esac
+
+if [ "$TEXT_FRONTEND" -eq 1 ] &&
+   [ "$LANG_ID" -eq 0 ] && [ "$LANG_SW" -eq 0 ] && [ "$LANG_ES" -eq 0 ]; then
+    die "select at least one text language or use ipa"
+fi
+
+case "$TEXT_FRONTEND:$LANG_ID$LANG_SW$LANG_ES" in
+    0:000) PROFILE=ipa ;;
+    1:100) PROFILE=id ;;
+    1:010) PROFILE=sw ;;
+    1:001) PROFILE=es ;;
+    1:110) PROFILE=id-sw ;;
+    1:101) PROFILE=id-es ;;
+    1:011) PROFILE=sw-es ;;
+    1:111) PROFILE=all ;;
+    *) die "internal language-profile error" ;;
 esac
 
 [ -n "$JOBS" ] || JOBS=$(detect_jobs)
@@ -132,30 +178,28 @@ fi
 
 "$MAKE_CMD" -C "$ROOT_DIR" -j"$JOBS" all \
     BUILD="$MAKE_BUILD" \
-    TEXT_FRONTEND="$TEXT_FRONTEND" LANG_ID="$LANG_ID" LANG_SW="$LANG_SW"
+    TEXT_FRONTEND="$TEXT_FRONTEND" \
+    LANG_ID="$LANG_ID" LANG_SW="$LANG_SW" LANG_ES="$LANG_ES"
 
 if [ "$RUN_TESTS" -eq 1 ]; then
     cmake -S "$ROOT_DIR" -B "$ROOT_DIR/$TEST_BUILD" \
         -DCMAKE_BUILD_TYPE=MinSizeRel \
         -DNANOTTS_ENABLE_TEXT_FRONTEND=$( [ "$TEXT_FRONTEND" -eq 1 ] && printf ON || printf OFF ) \
         -DNANOTTS_ENABLE_LANG_ID=$( [ "$LANG_ID" -eq 1 ] && printf ON || printf OFF ) \
-        -DNANOTTS_ENABLE_LANG_SW=$( [ "$LANG_SW" -eq 1 ] && printf ON || printf OFF )
+        -DNANOTTS_ENABLE_LANG_SW=$( [ "$LANG_SW" -eq 1 ] && printf ON || printf OFF ) \
+        -DNANOTTS_ENABLE_LANG_ES=$( [ "$LANG_ES" -eq 1 ] && printf ON || printf OFF )
     cmake --build "$ROOT_DIR/$TEST_BUILD" --parallel "$JOBS"
     ctest --test-dir "$ROOT_DIR/$TEST_BUILD" --output-on-failure
 fi
 
 CLI="$ROOT_DIR/$MAKE_BUILD/nanotts"
 printf '\nBuild complete. CLI: %s\n' "$CLI"
-case "$PROFILE" in
-    all|id)
-        printf 'Indonesian: %s --lang id --text "selamat pagi" -o id.wav\n' "$CLI"
-        ;;
-esac
-case "$PROFILE" in
-    all|sw)
-        printf 'Kiswahili:  %s --lang sw --text "habari yako" -o sw.wav\n' "$CLI"
-        ;;
-esac
+[ "$LANG_ID" -eq 0 ] || \
+    printf 'Indonesian: %s --lang id --text "selamat pagi" -o id.wav\n' "$CLI"
+[ "$LANG_SW" -eq 0 ] || \
+    printf 'Kiswahili:  %s --lang sw --text "habari yako" -o sw.wav\n' "$CLI"
+[ "$LANG_ES" -eq 0 ] || \
+    printf 'Spanish:    %s --lang es --text "hola, buenos días" -o es.wav\n' "$CLI"
 if [ "$PROFILE" = ipa ]; then
-    printf 'IPA:         %s --ipa "h_a_b_ˈa_r_i" -o speech.wav\n' "$CLI"
+    printf 'IPA:        %s --ipa "h_o_l_a" -o speech.wav\n' "$CLI"
 fi

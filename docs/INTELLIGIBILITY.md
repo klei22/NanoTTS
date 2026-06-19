@@ -3,10 +3,10 @@
 Validation date: 2026-06-19.
 
 
-> **Scope in NanoTTS 0.3:** this document records the Indonesian acoustic work
-> that produced the shared renderer now used by both modules. It is not a
-> Kiswahili listening study. NanoTTS 0.3 adds Kiswahili parser and inventory
-> validation, but a native-listener Kiswahili transcription study remains
+> **Scope in NanoTTS 0.4:** this document records the Indonesian acoustic work
+> that produced the shared renderer now used by all three text modules. It is
+> not a Kiswahili or Spanish listening study. Their parsers and phone inventories
+> have automated validation, but native-listener transcription studies remain
 > required before claiming language-level intelligibility.
 
 ## Scope and caveat

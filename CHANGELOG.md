@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.0 — 2026-06-19
+
+- Added optional Spanish (`es`) text support with a documented neutral
+  Latin-American-style scope using seseo and yeísmo.
+- Added accented stress, weak-vowel glide and hiatus handling, `ch`, `ll`,
+  `rr`, `ñ`, silent `h`, `qu`, `gu`, `gü`, hard/soft `c` and `g`, taps,
+  trills, Spanish numbers, acronyms, and inverted punctuation handling.
+- Added lightweight within-word `/b~β/`, `/d~ð/`, and `/g~ɣ/` allophony and a
+  new independently tuned `/β/` renderer phone and IPA symbol.
+- Added `NANOTTS_ENABLE_LANG_ES`, `NANOTTS_LANG_SPANISH`, language-code aliases,
+  Spanish-only and arbitrary subset build profiles, and direct parser dispatch
+  in Spanish-only builds.
+- Added acceptance of both precomposed and common decomposed UTF-8 spellings
+  for acute accents, `ñ`, and `ü`, without a general normalization dependency.
+- Extended strict IPA input with `β` and `ʝ` aliases used by external Spanish
+  IPA producers; all 54 smoke-corpus phrases passed the process-separated
+  compatibility check in the release environment.
+- Extended the CLI, setup helper, CMake, Makefile, CI matrix, examples, tests,
+  documentation, provenance record, and a 54-utterance Spanish smoke corpus.
+- Preserved zero language branching in the renderer and the clean-room MIT
+  runtime boundary.
+
 ## 0.3.0 — 2026-06-19
 
 - Renamed the project, library, executable, include path, API prefix, package,

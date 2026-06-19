@@ -17,15 +17,19 @@ static int audio_write(void *user, const int16_t *samples, size_t count)
 int main(void)
 {
     /* The application chooses a text language before it parses the text. */
-    nanotts_language_t selected = NANOTTS_LANG_KISWAHILI;
-    const char *text = "habari yako";
+    nanotts_language_t selected = NANOTTS_LANG_SPANISH;
+    const char *text = "hola, buenos días";
     static nanotts_t tts;
     nanotts_options_t options;
     nanotts_parse_info_t parse;
     uint64_t total_samples = 0u;
     nanotts_result_t result;
 
-    /* Keep this sample runnable in either one-language build profile. */
+    /* Keep this sample runnable in any one-language build profile. */
+    if (!nanotts_language_available(selected)) {
+        selected = NANOTTS_LANG_KISWAHILI;
+        text = "habari yako";
+    }
     if (!nanotts_language_available(selected)) {
         selected = NANOTTS_LANG_INDONESIAN;
         text = "selamat pagi";

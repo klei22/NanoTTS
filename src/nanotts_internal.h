@@ -19,6 +19,9 @@
 #ifndef NANOTTS_ENABLE_LANG_SW
 #define NANOTTS_ENABLE_LANG_SW 1
 #endif
+#ifndef NANOTTS_ENABLE_LANG_ES
+#define NANOTTS_ENABLE_LANG_ES 1
+#endif
 
 #define NANOTTS_FRAME_MS 5u
 #define NANOTTS_PI_F 3.14159265358979323846f
@@ -179,6 +182,15 @@ nanotts_result_t nanotts_lang_sw_parse_text(
     size_t length,
     nanotts_parse_info_t *info);
 #endif
+
+#if NANOTTS_ENABLE_TEXT_FRONTEND && NANOTTS_ENABLE_LANG_ES
+nanotts_result_t nanotts_lang_es_parse_text(
+    nanotts_impl_t *impl,
+    const char *text,
+    size_t length,
+    nanotts_parse_info_t *info);
+#endif
+
 
 nanotts_result_t nanotts_synth_render(
     nanotts_impl_t *impl,

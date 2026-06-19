@@ -129,11 +129,12 @@ static void print_usage(FILE *file)
         "Usage:\n"
         "  nanotts --lang id --text TEXT -o speech.wav [options]\n"
         "  nanotts --lang sw --text TEXT -o speech.wav [options]\n"
+        "  nanotts --lang es --text TEXT -o speech.wav [options]\n"
         "  nanotts --ipa IPA -o speech.wav [options]\n"
-        "  espeak -q -v sw --ipa=1 --sep=_ TEXT | \\\n"
+        "  espeak-ng -q -v es-la --ipa=1 --sep=_ TEXT | \\\n"
         "    nanotts --ipa-file - -o speech.wav\n\n"
         "Input:\n"
-        "  --lang CODE             Text language: id or sw (required for text)\n"
+        "  --lang CODE             Text language: id, sw, or es (required for text)\n"
         "  --ipa STRING            Speak the supported IPA subset\n"
         "  --text STRING           Use the selected built-in text module\n"
         "  --ipa-file PATH         Read IPA from PATH, or - for stdin\n"
@@ -224,7 +225,7 @@ int main(int argc, char **argv)
                 language = nanotts_language_from_code(value);
                 language_given = 1;
                 if (language == NANOTTS_LANG_COUNT || language == NANOTTS_LANG_NONE) {
-                    fprintf(stderr, "invalid text language: %s (use id or sw)\n", value);
+                    fprintf(stderr, "invalid text language: %s (use id, sw, or es)\n", value);
                     return 2;
                 }
             } else if (!strcmp(arg, "--ipa")) {
@@ -289,7 +290,7 @@ int main(int argc, char **argv)
         return 2;
     }
     if (mode == INPUT_TEXT && !language_given) {
-        fprintf(stderr, "--lang id or --lang sw is required for text input\n");
+        fprintf(stderr, "--lang id, --lang sw, or --lang es is required for text input\n");
         return 2;
     }
     if (inline_input != NULL && input_path != NULL) {

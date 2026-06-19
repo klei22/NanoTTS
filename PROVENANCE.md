@@ -18,13 +18,14 @@ rules, dictionaries, voice tables, recorded units, or other assets from:
 The voice parameters in `src/nanotts_voice.c` are original hand-tuned values.
 They are not copied from an existing program, generated voice, or language
 package. The Kiswahili `/θ/`, `/ð/`, and `/ɣ/` entries were independently
-added for NanoTTS 0.3 and use the same original source/filter model.
+added for NanoTTS 0.3. The Spanish `/β/` entry was independently added for
+NanoTTS 0.4. All use the same original source/filter model.
 
 ## Language-module provenance
 
-The Indonesian and Kiswahili modules are independently authored bounded G2P
-implementations. They do not translate, extract, or mechanically reproduce an
-existing TTS engine's language files.
+The Indonesian, Kiswahili, and Spanish modules are independently authored,
+bounded G2P implementations. They do not translate, extract, or mechanically
+reproduce an existing TTS engine's language files.
 
 The Kiswahili scope was informed by descriptive linguistic references rather
 than implementation data. In particular:
@@ -43,6 +44,24 @@ recording, or numeric acoustic data was imported from them. The test corpus in
 `tests/data/sw_smoke.txt` consists of short independently selected phrases and
 words used to exercise implemented features.
 
+The Spanish module's scope was informed by public descriptive material from the
+Real Academia Española and Instituto Cervantes concerning the five-vowel
+inventory, common spelling-to-sound correspondences, majority seseo and yeísmo,
+written stress conventions, and diphthong/hiatus behavior:
+
+- RAE, *Pronunciación*:
+  https://www.rae.es/libro-estilo-lengua-espa%C3%B1ola/pronunciaci%C3%B3n
+- RAE, *Reglas generales de acentuación*:
+  https://www.rae.es/ortograf%C3%ADa-b%C3%A1sica/uso-de-la-tilde/las-reglas-de-acentuaci%C3%B3n-gr%C3%A1fica/reglas-generales
+- RAE, *Los fonemas del español*:
+  https://www.rae.es/ortograf%C3%ADa-b%C3%A1sica/uso-de-las-letras/los-fonemas-del-espa%C3%B1ol
+- Instituto Cervantes, *Pronunciación. Inventario A1-A2*:
+  https://cvc.cervantes.es/ensenanza/biblioteca_ele/plan_curricular/niveles/03_pronunciacion_inventario_a1-a2.htm
+
+Those sources describe Spanish. No prose, source code, pronunciation table,
+lexicon, recording, or numeric acoustic data was copied into NanoTTS. The rules
+and `tests/data/es_smoke.txt` were independently authored for this project.
+
 ## Role of eSpeak
 
 eSpeak is an optional, external interoperability tool. During development it
@@ -51,6 +70,7 @@ may be executed as a black-box IPA producer:
 ```sh
 espeak -q -v id --ipa=1 --sep=_ TEXT
 espeak -q -v sw --ipa=1 --sep=_ TEXT
+espeak -q -v es-la --ipa=1 --sep=_ TEXT
 ```
 
 Its UTF-8 stdout can be passed through a process boundary to the MIT-licensed

@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 #define NANOTTS_VERSION_MAJOR 0
-#define NANOTTS_VERSION_MINOR 3
+#define NANOTTS_VERSION_MINOR 4
 #define NANOTTS_VERSION_PATCH 0
 
 #ifndef NANOTTS_MAX_EVENTS
@@ -50,7 +50,10 @@ typedef enum nanotts_language {
     NANOTTS_LANG_KISWAHILI = 2,
     /* Source compatibility alias; ISO 639-1 code remains "sw". */
     NANOTTS_LANG_SWAHILI = NANOTTS_LANG_KISWAHILI,
-    NANOTTS_LANG_COUNT = 3
+    NANOTTS_LANG_SPANISH = 3,
+    /* Explicit dialect-scope alias for source readability. */
+    NANOTTS_LANG_SPANISH_LATIN_AMERICAN = NANOTTS_LANG_SPANISH,
+    NANOTTS_LANG_COUNT = 4
 } nanotts_language_t;
 
 typedef enum nanotts_final_tone {
@@ -127,6 +130,9 @@ typedef enum nanotts_phone {
     NANOTTS_PH_TAP,
     NANOTTS_PH_W,
     NANOTTS_PH_Y,
+
+    /* Voiced bilabial approximant/fricative, used by Spanish /b/ allophony. */
+    NANOTTS_PH_BETA,
 
     NANOTTS_PH_COUNT
 } nanotts_phone_t;

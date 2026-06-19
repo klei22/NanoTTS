@@ -7,9 +7,7 @@ static int ascii_equal_case(const char *a, const char *b)
 {
     unsigned char ca;
     unsigned char cb;
-    if (a == NULL || b == NULL) {
-        return 0;
-    }
+    if (a == NULL || b == NULL) return 0;
     while (*a != '\0' && *b != '\0') {
         ca = (unsigned char)*a++;
         cb = (unsigned char)*b++;
@@ -27,6 +25,9 @@ bool nanotts_language_is_compiled(nanotts_language_t language)
 #endif
 #if NANOTTS_ENABLE_TEXT_FRONTEND && NANOTTS_ENABLE_LANG_SW
     if (language == NANOTTS_LANG_KISWAHILI) return true;
+#endif
+#if NANOTTS_ENABLE_TEXT_FRONTEND && NANOTTS_ENABLE_LANG_ES
+    if (language == NANOTTS_LANG_SPANISH) return true;
 #endif
     (void)language;
     return false;
@@ -46,6 +47,9 @@ size_t nanotts_compiled_language_count(void)
 #if NANOTTS_ENABLE_TEXT_FRONTEND && NANOTTS_ENABLE_LANG_SW
     count++;
 #endif
+#if NANOTTS_ENABLE_TEXT_FRONTEND && NANOTTS_ENABLE_LANG_ES
+    count++;
+#endif
     return count;
 }
 
@@ -57,6 +61,10 @@ nanotts_language_t nanotts_compiled_language_at(size_t index)
 #endif
 #if NANOTTS_ENABLE_TEXT_FRONTEND && NANOTTS_ENABLE_LANG_SW
     if (index == 0u) return NANOTTS_LANG_KISWAHILI;
+    index--;
+#endif
+#if NANOTTS_ENABLE_TEXT_FRONTEND && NANOTTS_ENABLE_LANG_ES
+    if (index == 0u) return NANOTTS_LANG_SPANISH;
     index--;
 #endif
     (void)index;
@@ -83,6 +91,22 @@ nanotts_language_t nanotts_language_from_code(const char *code)
         ascii_equal_case(code, "kiswahili")) {
         return NANOTTS_LANG_KISWAHILI;
     }
+    if (ascii_equal_case(code, "es") ||
+        ascii_equal_case(code, "es-419") ||
+        ascii_equal_case(code, "es_419") ||
+        ascii_equal_case(code, "es-la") ||
+        ascii_equal_case(code, "es_la") ||
+        ascii_equal_case(code, "es-mx") ||
+        ascii_equal_case(code, "es_mx") ||
+        ascii_equal_case(code, "spanish") ||
+        ascii_equal_case(code, "espanol") ||
+        (code != NULL &&
+         (!strcmp(code, "español") || !strcmp(code, "Español") ||
+          !strcmp(code, "ESPAÑOL"))) ||
+        ascii_equal_case(code, "castilian") ||
+        ascii_equal_case(code, "castellano")) {
+        return NANOTTS_LANG_SPANISH;
+    }
     if (ascii_equal_case(code, "none") || ascii_equal_case(code, "ipa")) {
         return NANOTTS_LANG_NONE;
     }
@@ -95,6 +119,7 @@ const char *nanotts_language_code(nanotts_language_t language)
     case NANOTTS_LANG_NONE: return "none";
     case NANOTTS_LANG_INDONESIAN: return "id";
     case NANOTTS_LANG_KISWAHILI: return "sw";
+    case NANOTTS_LANG_SPANISH: return "es";
     default: return "unknown";
     }
 }
@@ -105,6 +130,7 @@ const char *nanotts_language_name(nanotts_language_t language)
     case NANOTTS_LANG_NONE: return "IPA only";
     case NANOTTS_LANG_INDONESIAN: return "Indonesian";
     case NANOTTS_LANG_KISWAHILI: return "Kiswahili";
+    case NANOTTS_LANG_SPANISH: return "Spanish (Latin American)";
     default: return "Unknown";
     }
 }
@@ -126,16 +152,21 @@ nanotts_result_t nanotts_text_parse_impl(
     }
     return NANOTTS_ERR_FEATURE_DISABLED;
 #else
-#if NANOTTS_ENABLE_LANG_ID && !NANOTTS_ENABLE_LANG_SW
+#if NANOTTS_ENABLE_LANG_ID && !NANOTTS_ENABLE_LANG_SW && !NANOTTS_ENABLE_LANG_ES
     if ((nanotts_language_t)impl->language != NANOTTS_LANG_INDONESIAN) {
         return NANOTTS_ERR_LANGUAGE_UNAVAILABLE;
     }
     return nanotts_lang_id_parse_text(impl, text, length, info);
-#elif NANOTTS_ENABLE_LANG_SW && !NANOTTS_ENABLE_LANG_ID
+#elif NANOTTS_ENABLE_LANG_SW && !NANOTTS_ENABLE_LANG_ID && !NANOTTS_ENABLE_LANG_ES
     if ((nanotts_language_t)impl->language != NANOTTS_LANG_KISWAHILI) {
         return NANOTTS_ERR_LANGUAGE_UNAVAILABLE;
     }
     return nanotts_lang_sw_parse_text(impl, text, length, info);
+#elif NANOTTS_ENABLE_LANG_ES && !NANOTTS_ENABLE_LANG_ID && !NANOTTS_ENABLE_LANG_SW
+    if ((nanotts_language_t)impl->language != NANOTTS_LANG_SPANISH) {
+        return NANOTTS_ERR_LANGUAGE_UNAVAILABLE;
+    }
+    return nanotts_lang_es_parse_text(impl, text, length, info);
 #else
     switch ((nanotts_language_t)impl->language) {
 #if NANOTTS_ENABLE_LANG_ID
@@ -145,6 +176,10 @@ nanotts_result_t nanotts_text_parse_impl(
 #if NANOTTS_ENABLE_LANG_SW
     case NANOTTS_LANG_KISWAHILI:
         return nanotts_lang_sw_parse_text(impl, text, length, info);
+#endif
+#if NANOTTS_ENABLE_LANG_ES
+    case NANOTTS_LANG_SPANISH:
+        return nanotts_lang_es_parse_text(impl, text, length, info);
 #endif
     default:
         if (info != NULL) {

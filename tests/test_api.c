@@ -14,6 +14,9 @@
 #ifndef NANOTTS_EXPECT_LANG_SW
 #define NANOTTS_EXPECT_LANG_SW 1
 #endif
+#ifndef NANOTTS_EXPECT_LANG_ES
+#define NANOTTS_EXPECT_LANG_ES 1
+#endif
 
 static int abort_immediately(void *user, const int16_t *samples, size_t count)
 {
@@ -47,13 +50,23 @@ int main(void)
            NANOTTS_EXPECT_LANG_ID);
     assert(nanotts_language_available(NANOTTS_LANG_KISWAHILI) ==
            NANOTTS_EXPECT_LANG_SW);
+    assert(nanotts_language_available(NANOTTS_LANG_SPANISH) ==
+           NANOTTS_EXPECT_LANG_ES);
     assert(nanotts_language_from_code("id") == NANOTTS_LANG_INDONESIAN);
     assert(nanotts_language_from_code("Kiswahili") == NANOTTS_LANG_KISWAHILI);
+    assert(nanotts_language_from_code("es-MX") == NANOTTS_LANG_SPANISH);
+    assert(nanotts_language_from_code("español") == NANOTTS_LANG_SPANISH);
+    assert(nanotts_language_from_code("ESPAÑOL") == NANOTTS_LANG_SPANISH);
+    assert(nanotts_language_from_code("castellano") == NANOTTS_LANG_SPANISH);
     assert(nanotts_language_from_code("bogus") == NANOTTS_LANG_COUNT);
     assert(strcmp(nanotts_language_code(NANOTTS_LANG_KISWAHILI), "sw") == 0);
+    assert(strcmp(nanotts_language_code(NANOTTS_LANG_SPANISH), "es") == 0);
+    assert(strstr(nanotts_language_name(NANOTTS_LANG_SPANISH), "Spanish") != NULL);
     assert(NANOTTS_LANG_SWAHILI == NANOTTS_LANG_KISWAHILI);
+    assert(NANOTTS_LANG_SPANISH_LATIN_AMERICAN == NANOTTS_LANG_SPANISH);
     assert(nanotts_compiled_language_count() ==
-           (size_t)(NANOTTS_EXPECT_LANG_ID + NANOTTS_EXPECT_LANG_SW));
+           (size_t)(NANOTTS_EXPECT_LANG_ID + NANOTTS_EXPECT_LANG_SW +
+                    NANOTTS_EXPECT_LANG_ES));
     if (nanotts_compiled_language_count() > 0u) {
         assert(nanotts_compiled_language_at(0u) != NANOTTS_LANG_NONE);
     }
@@ -72,6 +85,13 @@ int main(void)
     assert(nanotts_language(&tts) == NANOTTS_LANG_KISWAHILI);
 #else
     assert(nanotts_set_language(&tts, NANOTTS_LANG_KISWAHILI) ==
+           NANOTTS_ERR_LANGUAGE_UNAVAILABLE);
+#endif
+#if NANOTTS_EXPECT_LANG_ES
+    assert(nanotts_set_language(&tts, NANOTTS_LANG_SPANISH) == NANOTTS_OK);
+    assert(nanotts_language(&tts) == NANOTTS_LANG_SPANISH);
+#else
+    assert(nanotts_set_language(&tts, NANOTTS_LANG_SPANISH) ==
            NANOTTS_ERR_LANGUAGE_UNAVAILABLE);
 #endif
     assert(nanotts_set_language(&tts, NANOTTS_LANG_NONE) == NANOTTS_OK);
@@ -113,6 +133,7 @@ int main(void)
     assert(nanotts_text_frontend_available() == NANOTTS_EXPECT_TEXT_FRONTEND);
     assert(nanotts_version_string() != NULL);
     assert(nanotts_phone_name(NANOTTS_PH_GH) != NULL);
+    assert(strcmp(nanotts_phone_name(NANOTTS_PH_BETA), "beta") == 0);
     assert(nanotts_strerror(NANOTTS_ERR_LANGUAGE_UNAVAILABLE) != NULL);
     return 0;
 }

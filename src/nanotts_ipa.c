@@ -155,6 +155,7 @@ static bool map_single_phone(uint32_t cp, nanotts_phone_t *phone)
 
     case 'f': case 0x0278u: *phone = NANOTTS_PH_F; return true;
     case 'v': *phone = NANOTTS_PH_V; return true;
+    case 0x03b2u: *phone = NANOTTS_PH_BETA; return true;
     case 's': *phone = NANOTTS_PH_S; return true;
     case 'z': *phone = NANOTTS_PH_Z; return true;
     case 0x03b8u: *phone = NANOTTS_PH_TH; return true;
@@ -173,7 +174,8 @@ static bool map_single_phone(uint32_t cp, nanotts_phone_t *phone)
     case 'r': case 0x0280u: *phone = NANOTTS_PH_R; return true;
     case 0x027eu: *phone = NANOTTS_PH_TAP; return true;
     case 'w': case 0x028bu: *phone = NANOTTS_PH_W; return true;
-    case 'j': case 0x0265u: *phone = NANOTTS_PH_Y; return true;
+    case 'j': case 0x0265u: case 0x029du: case 0x028eu: /* ʎ≈j */
+        *phone = NANOTTS_PH_Y; return true;
     case 0x025fu: case 0x02a4u: *phone = NANOTTS_PH_J; return true;
     case 0x02a7u: *phone = NANOTTS_PH_CH; return true;
     default: return false;

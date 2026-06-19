@@ -5,6 +5,7 @@
 /out/
 /dist/
 /install/
+/validation/
 
 # Accidental in-source CMake/CTest output
 /CMakeCache.txt

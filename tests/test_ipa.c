@@ -109,6 +109,12 @@ int main(void)
     assert(contains(&tts, NANOTTS_PH_DH));
     assert(contains(&tts, NANOTTS_PH_GH));
 
+    result = nanotts_parse_ipa(&tts, "β_ʝ_ʎ", NANOTTS_NPOS, 0u, &info);
+    assert(result == NANOTTS_OK);
+    expect_phone(&tts, 0u, NANOTTS_PH_BETA);
+    expect_phone(&tts, 1u, NANOTTS_PH_Y);
+    expect_phone(&tts, 2u, NANOTTS_PH_Y);
+
     result = nanotts_parse_ipa(&tts, "ˈs_aː", NANOTTS_NPOS, 0u, &info);
     assert(result == NANOTTS_OK);
     events = nanotts_events(&tts);

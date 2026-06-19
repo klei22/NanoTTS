@@ -144,6 +144,7 @@ Measure each module separately:
 cmake -S . -B build-xx \
   -DNANOTTS_ENABLE_LANG_ID=OFF \
   -DNANOTTS_ENABLE_LANG_SW=OFF \
+  -DNANOTTS_ENABLE_LANG_ES=OFF \
   -DNANOTTS_ENABLE_LANG_XX=ON
 cmake --build build-xx
 ```

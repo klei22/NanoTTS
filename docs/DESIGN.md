@@ -19,10 +19,10 @@ host process, while NanoTTS independently parses and renders that IPA.
 
 ```text
 Indonesian text ── id module ─┐
-                              │
-Kiswahili text ─── sw module ─┼─ normalized phone events
-                              │             │
-separated IPA ───── IPA parser┘             ▼
+Kiswahili text ─── sw module ───┤
+Spanish text ───── es module ────┼─ normalized phone events
+                                │             │
+separated IPA ───── IPA parser──┘             ▼
                                   duration, prominence, F0
                                               ▼
                               glottal/noise excitation
@@ -35,16 +35,17 @@ separated IPA ───── IPA parser┘             ▼
 ```
 
 Language modules stop at the event boundary. The acoustic renderer never knows
-whether events came from Indonesian, Kiswahili, IPA, or a precomputed array.
+whether events came from Indonesian, Kiswahili, Spanish, IPA, or a precomputed array.
 
 ## Language-module dispatch
 
 The selected language is one byte in `nanotts_t`. `nanotts_parse_text` performs
 a single compile-time-controlled selection:
 
-- dual-language build: one `switch` per text utterance;
+- multi-language build: one `switch` per text utterance;
 - Indonesian-only build: direct `nanotts_lang_id_parse_text` call;
 - Kiswahili-only build: direct `nanotts_lang_sw_parse_text` call;
+- Spanish-only build: direct `nanotts_lang_es_parse_text` call;
 - IPA-only build: text parser and shared text helpers omitted.
 
 There is no function-pointer dispatch per phone, frame, or sample. The synthesis
@@ -81,7 +82,7 @@ small phone IDs. Unknown code points are reported with byte offsets in strict
 mode.
 
 The accepted inventory is a finite cross-language profile rather than arbitrary
-IPA. It includes the phones used by current Indonesian and Kiswahili modules,
+IPA. It includes the phones used by current Indonesian, Kiswahili, and Spanish modules,
 plus unambiguous aliases observed from separated external IPA producers.
 
 ### Text modules
@@ -126,14 +127,16 @@ single-precision floating point.
 - Vowels hold or interpolate formant targets.
 - Indonesian diphthong events interpolate smoothly to a second target.
 - Kiswahili adjacent vowels remain separate events.
+- Spanish weak-vowel groups use glide events, while `ai`, `au`, and `oi`
+  reuse smooth diphthong trajectories and accented weak vowels force hiatus.
 - Stops stage closure, burst, and release/aspiration.
 - Affricates stage closure followed by frication.
 - `/h/` borrows a following sonorant's formants.
 - Nasals add a low resonance and broader formants.
 - The trill gates voicing; the tap uses one short closure.
 - Immediate neighbors pull vowel edges toward place-dependent loci.
-- Dedicated compact definitions cover `/θ/`, `/ð/`, and `/ɣ/` for Kiswahili
-  loan vocabulary.
+- Dedicated compact definitions cover `/θ/`, `/ð/`, and `/ɣ/`; Spanish also
+  uses an independently tuned `/β/` phone for common intervocalic allophony.
 
 ## Prosody
 

@@ -71,7 +71,10 @@ static const nanotts_phone_def_t PHONE_DEFS[NANOTTS_PH_COUNT] = {
     DEF(NANOTTS_KIND_TRILL, 78, 225, 7, 420, 1450, 2500, 3450, 420, 1450, 2500, 3450, 0, 0, 215),   /* r */
     DEF(NANOTTS_KIND_TAP, 38, 215, 5, 420, 1450, 2500, 3450, 420, 1450, 2500, 3450, 0, 0, 205),     /* tap */
     DEF(NANOTTS_KIND_GLIDE, 64, 235, 4, 320, 850, 2250, 3300, 430, 1250, 2450, 3450, 0, 0, 205),    /* w */
-    DEF(NANOTTS_KIND_GLIDE, 62, 235, 3, 300, 2200, 3000, 3650, 420, 1750, 2700, 3500, 0, 0, 205)    /* y */
+    DEF(NANOTTS_KIND_GLIDE, 62, 235, 3, 300, 2200, 3000, 3650, 420, 1750, 2700, 3500, 0, 0, 205),   /* y */
+
+    /* soft voiced bilabial approximant/fricative (Spanish beta allophone) */
+    DEF(NANOTTS_KIND_FRICATIVE_VOICED, 82, 155, 72, 340, 920, 2200, 3300, 340, 920, 2200, 3300, 1150, 1800, 198) /* beta */
 };
 
 #undef DEF
@@ -83,7 +86,7 @@ static const char *const PHONE_NAMES[NANOTTS_PH_COUNT] = {
     "ch", "j",
     "f", "v", "s", "z", "th", "dh", "sh", "x", "gh", "h",
     "m", "n", "ny", "ng",
-    "l", "r", "tap", "w", "y"
+    "l", "r", "tap", "w", "y", "beta"
 };
 
 const nanotts_phone_def_t *nanotts_phone_def(nanotts_phone_t phone)

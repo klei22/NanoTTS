@@ -7,6 +7,7 @@ CFLAGS ?= -Os -std=c99 -Wall -Wextra -Wpedantic
 TEXT_FRONTEND ?= 1
 LANG_ID ?= 1
 LANG_SW ?= 1
+LANG_ES ?= 1
 USE_LIBM ?= 1
 MAX_EVENTS ?= 512
 CONTEXT_BYTES ?= 3072
@@ -18,9 +19,12 @@ TEST_BUILD ?= build-test
 ifeq ($(TEXT_FRONTEND),0)
 LANG_ID := 0
 LANG_SW := 0
+LANG_ES := 0
 endif
-ifeq ($(TEXT_FRONTEND)$(LANG_ID)$(LANG_SW),100)
-$(error TEXT_FRONTEND=1 requires LANG_ID=1 and/or LANG_SW=1)
+ifeq ($(TEXT_FRONTEND),1)
+ifeq ($(filter 1,$(LANG_ID) $(LANG_SW) $(LANG_ES)),)
+$(error TEXT_FRONTEND=1 requires at least one of LANG_ID, LANG_SW, or LANG_ES)
+endif
 endif
 
 CPPFLAGS ?=
@@ -28,6 +32,7 @@ CPPFLAGS += -Iinclude -Isrc \
 	-DNANOTTS_ENABLE_TEXT_FRONTEND=$(TEXT_FRONTEND) \
 	-DNANOTTS_ENABLE_LANG_ID=$(LANG_ID) \
 	-DNANOTTS_ENABLE_LANG_SW=$(LANG_SW) \
+	-DNANOTTS_ENABLE_LANG_ES=$(LANG_ES) \
 	-DNANOTTS_USE_LIBM=$(USE_LIBM) \
 	-DNANOTTS_MAX_EVENTS=$(MAX_EVENTS) \
 	-DNANOTTS_CONTEXT_BYTES=$(CONTEXT_BYTES) \
@@ -53,6 +58,9 @@ LIB_OBJS += $(BUILD)/lang/nanotts_lang_id.o
 endif
 ifeq ($(LANG_SW),1)
 LIB_OBJS += $(BUILD)/lang/nanotts_lang_sw.o
+endif
+ifeq ($(LANG_ES),1)
+LIB_OBJS += $(BUILD)/lang/nanotts_lang_es.o
 endif
 endif
 
@@ -86,6 +94,7 @@ test:
 		-DNANOTTS_ENABLE_TEXT_FRONTEND=$(if $(filter 1,$(TEXT_FRONTEND)),ON,OFF) \
 		-DNANOTTS_ENABLE_LANG_ID=$(if $(filter 1,$(LANG_ID)),ON,OFF) \
 		-DNANOTTS_ENABLE_LANG_SW=$(if $(filter 1,$(LANG_SW)),ON,OFF) \
+		-DNANOTTS_ENABLE_LANG_ES=$(if $(filter 1,$(LANG_ES)),ON,OFF) \
 		-DNANOTTS_USE_LIBM=$(if $(filter 1,$(USE_LIBM)),ON,OFF)
 	cmake --build $(TEST_BUILD) --parallel
 	ctest --test-dir $(TEST_BUILD) --output-on-failure

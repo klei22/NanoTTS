@@ -16,7 +16,7 @@ Text language is selected at initialization:
 ```c
 nanotts_t tts;
 nanotts_result_t result = nanotts_init(
-    &tts, 16000u, NANOTTS_LANG_KISWAHILI);
+    &tts, 16000u, NANOTTS_LANG_SPANISH);
 ```
 
 Supported sample rates are 8000 through 24000 Hz. A requested text language
@@ -38,6 +38,7 @@ function is needed because the library allocates nothing.
 
 ```c
 int has_sw = nanotts_language_available(NANOTTS_LANG_KISWAHILI);
+int has_es = nanotts_language_available(NANOTTS_LANG_SPANISH);
 size_t count = nanotts_compiled_language_count();
 
 for (size_t i = 0; i < count; ++i) {
@@ -47,9 +48,14 @@ for (size_t i = 0; i < count; ++i) {
 }
 ```
 
-`nanotts_language_from_code` recognizes `id`, `id-ID`, `Indonesian`,
-`Bahasa-Indonesia`, `sw`, `sw-KE`, `sw-TZ`, `Swahili`, and `Kiswahili`,
-case-insensitively. Unknown input returns `NANOTTS_LANG_COUNT`.
+`nanotts_language_from_code` recognizes the principal aliases for all built-in
+modules case-insensitively: `id`/`Indonesian`/`Bahasa-Indonesia`,
+`sw`/`Swahili`/`Kiswahili`, and
+`es`/`es-419`/`es-MX`/`Spanish`/`espanol`/`español`/`castellano`. Unknown input returns
+`NANOTTS_LANG_COUNT`.
+
+`NANOTTS_LANG_SPANISH_LATIN_AMERICAN` is a source-level alias for
+`NANOTTS_LANG_SPANISH`; both serialize as the code `es`.
 
 `nanotts_compiled_language_at` returns `NANOTTS_LANG_NONE` for an out-of-range
 index. The order is stable for one build but applications should use codes,
@@ -71,7 +77,7 @@ events:
 ```c
 nanotts_parse_info_t info;
 nanotts_result_t r = nanotts_parse_text(
-    &tts, "habari yako", NANOTTS_NPOS, &info);
+    &tts, "hola, buenos días", NANOTTS_NPOS, &info);
 if (r == NANOTTS_OK) {
     const nanotts_event_t *events = nanotts_events(&tts);
     size_t count = nanotts_event_count(&tts);
@@ -92,7 +98,7 @@ IPA parsing is independent of the selected text language:
 
 ```c
 r = nanotts_parse_ipa(
-    &tts, "h_a_b_ˈa_r_i", NANOTTS_NPOS, 0u, &info);
+    &tts, "ˈo_l_a", NANOTTS_NPOS, 0u, &info);
 ```
 
 ## Precomputed events

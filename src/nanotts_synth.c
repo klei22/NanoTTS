@@ -187,6 +187,7 @@ static bool consonant_locus(
     switch (phone) {
     case NANOTTS_PH_P:
     case NANOTTS_PH_B:
+    case NANOTTS_PH_BETA:
     case NANOTTS_PH_M:
     case NANOTTS_PH_W:
         locus[1] = 850.0f;

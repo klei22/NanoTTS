@@ -32,6 +32,7 @@ For text input, also compile:
 src/lang/nanotts_lang_common.c
 src/lang/nanotts_lang_id.c       when Indonesian is enabled
 src/lang/nanotts_lang_sw.c       when Kiswahili is enabled
+src/lang/nanotts_lang_es.c       when Spanish is enabled
 ```
 
 Add `include` and `src` to the include path. Define consistently for the
@@ -41,6 +42,7 @@ library and every consumer of the public header:
 NANOTTS_ENABLE_TEXT_FRONTEND=1 or 0
 NANOTTS_ENABLE_LANG_ID=1 or 0
 NANOTTS_ENABLE_LANG_SW=1 or 0
+NANOTTS_ENABLE_LANG_ES=1 or 0
 NANOTTS_USE_LIBM=1 or 0
 NANOTTS_MAX_EVENTS=<capacity>
 NANOTTS_CONTEXT_BYTES=<opaque context bytes>
@@ -59,7 +61,8 @@ Choose the smallest required build:
 |---|---|---|
 | Indonesian-only | common + `lang_id` | direct call |
 | Kiswahili-only | common + `lang_sw` | direct call |
-| dual-language | common + both | one switch per text utterance |
+| Spanish-only | common + `lang_es` | direct call |
+| selected multi-language | common + selected modules | one switch per text utterance |
 | IPA-only | none | text API disabled |
 
 The DSP renderer is identical in every profile. Language selection is not
@@ -68,7 +71,7 @@ checked in the phone, 5 ms frame, or sample loop.
 At runtime, initialize a text build with its selected language:
 
 ```c
-nanotts_init(&tts, 16000u, NANOTTS_LANG_KISWAHILI);
+nanotts_init(&tts, 16000u, NANOTTS_LANG_SPANISH);
 ```
 
 Use `NANOTTS_LANG_NONE` for an IPA-only context.
@@ -118,8 +121,7 @@ should only advance or refill a separate queue.
 
 ## Audio settings for clarity
 
-Use 16 kHz when CPU and the output path permit it. Fricatives and affricates in
-both current languages rely on energy above the 4 kHz Nyquist limit of an 8 kHz
+Use 16 kHz when CPU and the output path permit it. Fricatives and affricates across the current languages rely on energy above the 4 kHz Nyquist limit of an 8 kHz
 build. Keep the amplifier and speaker below clipping. Small enclosures can
 remove vowel energy or exaggerate frication, so conduct final intelligibility
 tests on the production transducer.
@@ -158,22 +160,23 @@ output. Keep the PWM carrier well above the audio band.
 
 ## CMake cross-build examples
 
-Kiswahili-only text build:
+Spanish-only text build:
 
 ```sh
-cmake -S . -B build-arm-sw \
+cmake -S . -B build-arm-es \
   -DCMAKE_TOOLCHAIN_FILE=path/to/arm-none-eabi.cmake \
   -DCMAKE_BUILD_TYPE=MinSizeRel \
   -DNANOTTS_BUILD_CLI=OFF \
   -DNANOTTS_BUILD_TESTS=OFF \
   -DNANOTTS_BUILD_EXAMPLES=OFF \
   -DNANOTTS_ENABLE_LANG_ID=OFF \
-  -DNANOTTS_ENABLE_LANG_SW=ON \
+  -DNANOTTS_ENABLE_LANG_SW=OFF \
+  -DNANOTTS_ENABLE_LANG_ES=ON \
   -DNANOTTS_USE_LIBM=OFF \
   -DNANOTTS_MAX_EVENTS=128 \
   -DNANOTTS_CONTEXT_BYTES=1024 \
   -DNANOTTS_AUDIO_BLOCK=64
-cmake --build build-arm-sw
+cmake --build build-arm-es
 ```
 
 IPA-only build:

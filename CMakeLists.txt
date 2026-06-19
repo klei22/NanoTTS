@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(NanoTTS VERSION 0.3.0 LANGUAGES C)
+project(NanoTTS VERSION 0.4.0 LANGUAGES C)
 
 option(NANOTTS_BUILD_CLI "Build the WAV command-line tool" ON)
 option(NANOTTS_BUILD_TESTS "Build tests" ON)
@@ -8,6 +8,7 @@ option(NANOTTS_ENABLE_STRICT_WARNINGS "Enable extra compiler warnings" ON)
 option(NANOTTS_ENABLE_TEXT_FRONTEND "Build language text front ends" ON)
 option(NANOTTS_ENABLE_LANG_ID "Build the Indonesian text module" ON)
 option(NANOTTS_ENABLE_LANG_SW "Build the Kiswahili text module" ON)
+option(NANOTTS_ENABLE_LANG_ES "Build the Spanish text module" ON)
 option(NANOTTS_USE_LIBM "Use system libm for trigonometry and pitch math" ON)
 
 set(NANOTTS_MAX_EVENTS "512" CACHE STRING
@@ -24,7 +25,8 @@ foreach(value_name IN ITEMS NANOTTS_MAX_EVENTS NANOTTS_CONTEXT_BYTES NANOTTS_AUD
 endforeach()
 
 if(NANOTTS_ENABLE_TEXT_FRONTEND AND
-   NOT NANOTTS_ENABLE_LANG_ID AND NOT NANOTTS_ENABLE_LANG_SW)
+   NOT NANOTTS_ENABLE_LANG_ID AND NOT NANOTTS_ENABLE_LANG_SW AND
+   NOT NANOTTS_ENABLE_LANG_ES)
     message(FATAL_ERROR
         "Text frontend enabled with no language modules; disable "
         "NANOTTS_ENABLE_TEXT_FRONTEND or enable at least one language")
@@ -45,6 +47,9 @@ if(NANOTTS_ENABLE_TEXT_FRONTEND)
     if(NANOTTS_ENABLE_LANG_SW)
         list(APPEND NANOTTS_SOURCES src/lang/nanotts_lang_sw.c)
     endif()
+    if(NANOTTS_ENABLE_LANG_ES)
+        list(APPEND NANOTTS_SOURCES src/lang/nanotts_lang_es.c)
+    endif()
 endif()
 
 set(NANOTTS_LANGUAGE_SUMMARY " IPA only")
@@ -55,6 +60,9 @@ if(NANOTTS_ENABLE_TEXT_FRONTEND)
     endif()
     if(NANOTTS_ENABLE_LANG_SW)
         string(APPEND NANOTTS_LANGUAGE_SUMMARY " sw")
+    endif()
+    if(NANOTTS_ENABLE_LANG_ES)
+        string(APPEND NANOTTS_LANGUAGE_SUMMARY " es")
     endif()
 endif()
 message(STATUS "NanoTTS text modules:${NANOTTS_LANGUAGE_SUMMARY}")
@@ -88,6 +96,7 @@ target_compile_definitions(nanotts
         NANOTTS_ENABLE_TEXT_FRONTEND=$<BOOL:${NANOTTS_ENABLE_TEXT_FRONTEND}>
         NANOTTS_ENABLE_LANG_ID=$<BOOL:${NANOTTS_ENABLE_LANG_ID}>
         NANOTTS_ENABLE_LANG_SW=$<BOOL:${NANOTTS_ENABLE_LANG_SW}>
+        NANOTTS_ENABLE_LANG_ES=$<BOOL:${NANOTTS_ENABLE_LANG_ES}>
         NANOTTS_USE_LIBM=$<BOOL:${NANOTTS_USE_LIBM}>)
 
 if(NANOTTS_ENABLE_STRICT_WARNINGS)
@@ -137,11 +146,13 @@ if(NANOTTS_BUILD_TESTS)
     target_compile_definitions(test_api PRIVATE
         NANOTTS_EXPECT_TEXT_FRONTEND=$<BOOL:${NANOTTS_ENABLE_TEXT_FRONTEND}>
         NANOTTS_EXPECT_LANG_ID=$<AND:$<BOOL:${NANOTTS_ENABLE_TEXT_FRONTEND}>,$<BOOL:${NANOTTS_ENABLE_LANG_ID}>>
-        NANOTTS_EXPECT_LANG_SW=$<AND:$<BOOL:${NANOTTS_ENABLE_TEXT_FRONTEND}>,$<BOOL:${NANOTTS_ENABLE_LANG_SW}>>)
+        NANOTTS_EXPECT_LANG_SW=$<AND:$<BOOL:${NANOTTS_ENABLE_TEXT_FRONTEND}>,$<BOOL:${NANOTTS_ENABLE_LANG_SW}>>
+        NANOTTS_EXPECT_LANG_ES=$<AND:$<BOOL:${NANOTTS_ENABLE_TEXT_FRONTEND}>,$<BOOL:${NANOTTS_ENABLE_LANG_ES}>>)
     if(TARGET test_languages)
         target_compile_definitions(test_languages PRIVATE
             NANOTTS_EXPECT_LANG_ID=$<BOOL:${NANOTTS_ENABLE_LANG_ID}>
-            NANOTTS_EXPECT_LANG_SW=$<BOOL:${NANOTTS_ENABLE_LANG_SW}>)
+            NANOTTS_EXPECT_LANG_SW=$<BOOL:${NANOTTS_ENABLE_LANG_SW}>
+            NANOTTS_EXPECT_LANG_ES=$<BOOL:${NANOTTS_ENABLE_LANG_ES}>)
     endif()
 endif()
 
@@ -189,6 +200,9 @@ set(CPACK_SOURCE_GENERATOR "ZIP;TGZ")
 set(CPACK_SOURCE_IGNORE_FILES
     "/build[^/]*/"
     "/\\.git/"
+    "/validation/"
+    "/dist/"
+    "/out/"
     "~$"
     "\\.wav$"
     "\\.png$")
