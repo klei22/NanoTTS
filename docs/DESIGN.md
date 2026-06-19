@@ -17,9 +17,9 @@ host, while `idtts` independently parses and renders that IPA.
 ## Pipeline
 
 ```text
-Indonesian text                         separated Indonesian IPA
-      │                                           │
-      └── independent compact G2P                 │
+Indonesian text                          separated Indonesian IPA
+      │                                            │
+      └── independent compact G2P                  │
                          └──────────┬──────────────┘
                                     ▼
                          normalized phone events
