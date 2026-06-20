@@ -22,6 +22,24 @@
 #ifndef NANOTTS_ENABLE_LANG_ES
 #define NANOTTS_ENABLE_LANG_ES 1
 #endif
+#ifndef NANOTTS_ENABLE_LANG_MS
+#define NANOTTS_ENABLE_LANG_MS 1
+#endif
+#ifndef NANOTTS_ENABLE_LANG_MI
+#define NANOTTS_ENABLE_LANG_MI 1
+#endif
+#ifndef NANOTTS_ENABLE_LANG_HAW
+#define NANOTTS_ENABLE_LANG_HAW 1
+#endif
+
+#if NANOTTS_ENABLE_TEXT_FRONTEND
+#define NANOTTS_COMPILED_LANGUAGE_COUNT \
+    (NANOTTS_ENABLE_LANG_ID + NANOTTS_ENABLE_LANG_SW + \
+     NANOTTS_ENABLE_LANG_ES + NANOTTS_ENABLE_LANG_MS + \
+     NANOTTS_ENABLE_LANG_MI + NANOTTS_ENABLE_LANG_HAW)
+#else
+#define NANOTTS_COMPILED_LANGUAGE_COUNT 0
+#endif
 
 #define NANOTTS_FRAME_MS 5u
 #define NANOTTS_PI_F 3.14159265358979323846f
@@ -167,29 +185,12 @@ nanotts_result_t nanotts_text_parse_impl(
 
 bool nanotts_language_is_compiled(nanotts_language_t language);
 
-#if NANOTTS_ENABLE_TEXT_FRONTEND && NANOTTS_ENABLE_LANG_ID
-nanotts_result_t nanotts_lang_id_parse_text(
-    nanotts_impl_t *impl,
-    const char *text,
-    size_t length,
-    nanotts_parse_info_t *info);
-#endif
-
-#if NANOTTS_ENABLE_TEXT_FRONTEND && NANOTTS_ENABLE_LANG_SW
-nanotts_result_t nanotts_lang_sw_parse_text(
-    nanotts_impl_t *impl,
-    const char *text,
-    size_t length,
-    nanotts_parse_info_t *info);
-#endif
-
-#if NANOTTS_ENABLE_TEXT_FRONTEND && NANOTTS_ENABLE_LANG_ES
-nanotts_result_t nanotts_lang_es_parse_text(
-    nanotts_impl_t *impl,
-    const char *text,
-    size_t length,
-    nanotts_parse_info_t *info);
-#endif
+#define NANOTTS_LANGUAGE(tag_, enum_, value_, code_, name_, aliases_, enabled_, parser_, profile_) \
+    nanotts_result_t parser_( \
+        nanotts_impl_t *impl, const char *text, size_t length, \
+        nanotts_parse_info_t *info);
+#include "nanotts/nanotts_languages.def"
+#undef NANOTTS_LANGUAGE
 
 
 nanotts_result_t nanotts_synth_render(

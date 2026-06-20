@@ -1,16 +1,65 @@
-# Adding a language module
+# Adding a text language
 
-NanoTTS intentionally separates language-specific text processing from audio
-synthesis. A new language module converts UTF-8 text into the existing
-four-byte `nanotts_event_t` representation. The shared renderer then treats the
-result exactly like IPA input.
+A NanoTTS language module is a compile-time, bounded UTF-8 text-to-event
+converter. It does not render samples and it does not own an output backend.
+Every module feeds the same phone-event ABI and shared renderer.
 
-This design keeps language additions small and prevents modularity from
-entering the real-time sample loop.
+## Design target
 
-## Module contract
+```text
+UTF-8 text
+   │
+   ▼
+xx text module ── normalization / G2P / stress / punctuation
+   │
+   ▼
+nanotts_event_t[]
+   │
+   ├── selected language prosody profile
+   ▼
+shared renderer ── PCM callback ── optional PCM/PWM adapter
+```
 
-A module implements one function:
+A multilingual build selects a parser once per text utterance. A build with one
+compiled text module resolves to a direct parser call at compile time. Do not
+add language checks inside the renderer, frame loop, or output adapters.
+
+## 1. Freeze the intended scope
+
+Before writing code, document:
+
+- language code and dialect/standard;
+- accepted script and Unicode normalization policy;
+- phoneme inventory;
+- multi-letter correspondences;
+- stress/prominence policy;
+- number, acronym, punctuation, and loanword policy;
+- ambiguities that require a table or explicit IPA;
+- features deliberately left unsupported.
+
+Prefer a small, explainable module over a large speculative dictionary.
+
+## 2. Reuse the common phone inventory
+
+Map the language to `nanotts_phone_t` values in
+`include/nanotts/nanotts.h`. Add a new shared phone only when an existing phone
+would destroy an important contrast.
+
+When adding a phone:
+
+1. append it without renumbering existing values;
+2. add an original acoustic definition in `src/nanotts_voice.c`;
+3. add a name in `nanotts_phone_name`;
+4. add IPA spelling/aliases if appropriate;
+5. test isolated rendering and parser acceptance;
+6. document acoustic provenance.
+
+Do not copy tables from another TTS engine.
+
+## 3. Implement the bounded parser
+
+Start from `src/lang/nanotts_lang_template.c.example` and create
+`src/lang/nanotts_lang_xx.c`:
 
 ```c
 nanotts_result_t nanotts_lang_xx_parse_text(
@@ -20,166 +69,162 @@ nanotts_result_t nanotts_lang_xx_parse_text(
     nanotts_parse_info_t *info);
 ```
 
-Its responsibilities are:
+The contract is:
 
-1. clear `impl->event_count` before parsing;
-2. validate UTF-8 and report the first bad byte;
-3. normalize text, numbers, abbreviations, and punctuation as needed;
-4. convert graphemes or lexical entries to common `NANOTTS_PH_*` IDs;
-5. set stress, word-end, phrase-end, and question flags;
-6. remain within `NANOTTS_MAX_EVENTS` and fixed temporary arrays;
-7. return `NANOTTS_ERR_EMPTY_INPUT` when no speakable phone was emitted;
-8. never allocate, render PCM, call an audio driver, or retain input pointers.
+- validate UTF-8 incrementally;
+- allocate no memory;
+- use bounded local arrays only;
+- reset `impl->event_count` before parsing;
+- return `NANOTTS_ERR_EMPTY_INPUT` when no phone is produced;
+- return byte offsets through `nanotts_parse_info_t`;
+- merge or trim pauses through shared helpers;
+- set `NANOTTS_EVENT_WORD_END`, stress, length, phrase, and question flags;
+- never silently write past event or word-local capacity.
 
-Start from:
+Reusable mechanics live in `nanotts_lang_common.[ch]`. Linguistic decisions
+belong in the module. Closely related languages may share a private family
+frontend, as Māori and Hawaiian do, provided a one-language build still links
+only the required code and no family choice reaches the renderer.
 
-```text
-src/lang/nanotts_lang_template.c.example
+## 4. Append a registry entry
+
+`include/nanotts/nanotts_languages.def` is the language metadata source of
+truth. Append a new entry; do not renumber old entries:
+
+```c
+NANOTTS_LANGUAGE(
+    XX, EXAMPLE, 7, "xx", "Example",
+    "xx|xx-yy|example",
+    NANOTTS_ENABLE_LANG_XX, nanotts_lang_xx_parse_text, XX)
 ```
 
-Shared utilities in `nanotts_lang_common.h` provide:
+The fields are:
 
-- bounded UTF-8 decoding;
-- event insertion and pause collapsing;
-- bounded word-local event buffers;
-- penultimate-vowel stress marking;
-- word-end and trailing-pause handling;
-- parse diagnostic initialization.
+1. short internal tag;
+2. public enum token;
+3. stable numeric ID;
+4. canonical code;
+5. display name;
+6. pipe-separated aliases;
+7. compile-time enable macro;
+8. parser symbol;
+9. prosody profile token.
 
-A language may use those helpers or implement stricter language-specific
-behavior, but it must preserve the public error and event contracts.
+The registry generates:
 
-## Step 1: define the orthographic scope
+- public `NANOTTS_LANG_*` enum entries;
+- code/name/alias metadata;
+- compiled-language discovery;
+- one-language direct dispatch or multilingual switch cases;
+- internal parser prototypes;
+- prosody association.
 
-Before writing code, document:
+IDs are currently contiguous append-only values. Keep that invariant so
+`NANOTTS_LANG_COUNT` remains generated from the number of entries.
 
-- the standard or dialect being targeted;
-- accepted script and Unicode normalization assumptions;
-- phone inventory and mappings into NanoTTS phones;
-- stress and syllabification policy;
-- number, acronym, punctuation, and foreign-word policy;
-- known ambiguous spellings and the override mechanism.
+## 5. Add a prosody profile
 
-Prefer a finite, testable scope over silent guesses. Keep strict IPA available
-as an escape hatch.
+Add `NANOTTS_PROFILE_XX` in `src/nanotts_prosody.c`. The profile is a small set
+of timing and F0 scales, not a replacement for lexical stress:
 
-## Step 2: reuse the phone inventory
-
-Use existing common phones whenever acoustically reasonable. Adding a phone
-requires updates to:
-
-- `nanotts_phone_t` in the public header;
-- the voice table and name table in `nanotts_voice.c`;
-- source/filter behavior or coarticulation groups when necessary;
-- IPA aliases if the phone can be entered explicitly;
-- inventory and synthesis tests.
-
-Do not create a duplicate phone only to represent a different spelling. Text
-modules are grapheme-to-phone converters; the renderer operates on sounds.
-
-## Step 3: implement the bounded parser
-
-A typical module collects one word into a fixed `uint32_t` array, converts the
-word into a fixed temporary event array, applies stress, and copies the events
-into the context. Parse punctuation outside the word conversion so all modules
-produce consistent phrase flags.
-
-Important details:
-
-- `length == NANOTTS_NPOS` is resolved by the public API before the module call.
-- Input may contain embedded NUL when an explicit byte length is supplied; do
-  not rely on C-string scanning inside the main parse loop.
-- Keep recursion bounded when expanding numbers.
-- Treat event overflow as an error; never truncate a word silently.
-- Reject malformed UTF-8 even when an unsupported visible character would
-  otherwise be skipped.
-- Add lexical exceptions only with documented, MIT-compatible provenance.
-
-## Step 4: register the language
-
-For a new code `xx`, update these intentional integration points:
-
-1. Add a stable `NANOTTS_LANG_*` value to `nanotts_language_t`.
-2. Add `NANOTTS_ENABLE_LANG_XX` defaults and a parser prototype in
-   `nanotts_internal.h`.
-3. Add `src/lang/nanotts_lang_xx.c` conditionally in `CMakeLists.txt` and the
-   Makefile.
-4. Add code/name aliases, availability, compiled enumeration, and the one-time
-   dispatch case in `nanotts_language.c`.
-5. Add tests in `tests/test_languages.c` or a dedicated language test.
-6. Document the language in `docs/LANGUAGES.md` and provenance record.
-
-The CLI uses the public language-enumeration functions, so it does not need a
-new hard-coded listing loop.
-
-## Performance model
-
-The module boundary is outside the renderer:
-
-```text
-nanotts_parse_text
-    └─ one language selection
-        └─ language parser emits events
-nanotts_render_events
-    └─ no language lookup
-        └─ phone loop
-            └─ frame loop
-                └─ sample loop
+```c
+#define NANOTTS_PROFILE_XX { \
+    126u, 100u, 100u, 100u, 100u, 108u, 104u, \
+    12, 5, 14, 0, -20, 7, -5, 27, 8, -2, 9 }
 ```
 
-With two or more modules, selection is a single integer switch per text parse.
-With exactly one module compiled, conditional compilation generates a direct
-call. An IPA-only build omits all text helpers and modules. There are no parser
-function pointers in `nanotts_t`, no virtual table per phone, and no language
-condition in the DSP path.
+Tune conservatively and explain each significant deviation from the neutral
+profile. The registry instantiates the profile only when its language module is
+compiled. The renderer asks for the profile once per render.
 
-The only always-present runtime state for language selection is one byte in the
-context, already padded in the implementation structure.
+## 6. Wire the build systems
 
-## Size discipline
+Add a CMake option and source condition:
 
-Measure each module separately:
+```cmake
+option(NANOTTS_ENABLE_LANG_XX "Build the Example text module" ON)
+```
+
+Update:
+
+- the no-language CMake validation;
+- `NANOTTS_SOURCES` selection;
+- private compile definitions;
+- API/language test expectation definitions;
+- setup-script parser/profile naming;
+- Makefile `LANG_XX`, definitions, and object selection;
+- CI module-selection matrix.
+
+A future build generator may consume the registry directly, but the current
+plain CMake and Make files intentionally keep source selection explicit.
+
+## 7. Add tests
+
+At minimum, add:
+
+- language-code and alias tests;
+- compiled/uncompiled availability tests;
+- representative grapheme and digraph tests;
+- stress and punctuation tests;
+- precomposed and decomposed Unicode tests when relevant;
+- number/acronym tests;
+- malformed UTF-8 and capacity tests;
+- a UTF-8 smoke corpus under `tests/data/`;
+- one-language, mixed-language, and no-`libm` builds;
+- sanitizer and random-input parser runs.
+
+When an external IPA producer supports the language, use
+`tools/check_espeak_ipa.py` only as a process-separated parser-compatibility
+check. It is not a pronunciation oracle and its output must not become runtime
+language data.
+
+## 8. Measure modularity
+
+Build an IPA-only baseline and a compact language-only profile with identical
+compiler settings:
 
 ```sh
+cmake -S . -B build-ipa \
+  -DCMAKE_BUILD_TYPE=MinSizeRel \
+  -DNANOTTS_ENABLE_TEXT_FRONTEND=OFF \
+  -DNANOTTS_USE_LIBM=OFF \
+  -DNANOTTS_MAX_EVENTS=128 \
+  -DNANOTTS_CONTEXT_BYTES=1024
+
 cmake -S . -B build-xx \
-  -DNANOTTS_ENABLE_LANG_ID=OFF \
-  -DNANOTTS_ENABLE_LANG_SW=OFF \
-  -DNANOTTS_ENABLE_LANG_ES=OFF \
-  -DNANOTTS_ENABLE_LANG_XX=ON
-cmake --build build-xx
+  -DCMAKE_BUILD_TYPE=MinSizeRel \
+  -DNANOTTS_ENABLE_LANG_XX=ON \
+  -D...other languages...=OFF \
+  -DNANOTTS_USE_LIBM=OFF \
+  -DNANOTTS_MAX_EVENTS=128 \
+  -DNANOTTS_CONTEXT_BYTES=1024
 ```
 
-Use `size`, the target linker map, and `--gc-sections`; host archive size alone
-is not an MCU flash measurement. Keep large exception dictionaries optional or
-compressed. Shared Unicode, number, or punctuation code belongs in common
-helpers only when at least two modules genuinely benefit and the shared path
-does not force unwanted features into a one-language build.
+Inspect object sections and the target linker map. Confirm that:
 
-## Test checklist
+- no disabled parser symbols are present;
+- disabled prosody tables are absent;
+- the selected parser is called directly in a one-language build;
+- output adapter libraries are absent unless linked;
+- per-context RAM does not grow merely because another language is compiled.
 
-At minimum, add tests for:
+## 9. Document provenance and limitations
 
-- every grapheme and multigraph;
-- every added phone and IPA alias;
-- word-initial, medial, and final contexts;
-- stress on one-, two-, and multi-syllable words;
-- adjacent vowels and consonant clusters;
-- uppercase words versus acronyms;
-- zero, units, tens, hundreds, thousands, and maximum supported numbers;
-- punctuation and question contours;
-- malformed UTF-8 and overlong words;
-- language-unavailable behavior in other build profiles;
-- deterministic non-silent rendering of a representative corpus;
-- strict acceptance of external IPA, when interoperability is claimed.
+Update `docs/LANGUAGES.md`, `PROVENANCE.md`, `docs/VALIDATION.md`, README,
+CHANGELOG, and the source-module README. Record linguistic references but do not
+copy source code, TTS rule tables, dictionaries, recordings, or acoustic data
+from incompatible projects.
 
-Then test intelligibility with native listeners. Spectral and level metrics can
-catch renderer regressions, but they cannot establish that a language is
-understood.
+## Review checklist
 
-## Clean-room and licensing rule
-
-NanoTTS is MIT licensed. Do not copy, translate, mechanically port, or derive
-rules, dictionaries, source, or voice tables from an incompatible TTS engine.
-Use linguistic descriptions, independently authored rules, and appropriately
-licensed recordings or measurements. Record the origin of new data in
-`PROVENANCE.md`.
+- [ ] Scope and dialect are explicit.
+- [ ] Stable registry ID appended.
+- [ ] Module is bounded and allocation-free.
+- [ ] Existing phone inventory reused where sensible.
+- [ ] New acoustic data is original and documented.
+- [ ] Profile selected once per render.
+- [ ] Single-language build has no other parser references.
+- [ ] IPA-only build still works.
+- [ ] PWM/PCM adapters remain language-independent.
+- [ ] Tests cover Unicode, stress, punctuation, and failure paths.
+- [ ] Native-speaker validation status is stated honestly.

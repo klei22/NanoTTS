@@ -74,6 +74,55 @@ bool nanotts_lang_decode_utf8(
     return false;
 }
 
+
+bool nanotts_lang_macron_vowel(
+    uint32_t cp,
+    uint32_t *base_lower,
+    bool *is_long,
+    bool *is_upper)
+{
+    uint32_t base = 0u;
+    bool long_value = false;
+    bool upper_value = false;
+
+    switch (cp) {
+    case 'A': base = 'a'; upper_value = true; break;
+    case 'E': base = 'e'; upper_value = true; break;
+    case 'I': base = 'i'; upper_value = true; break;
+    case 'O': base = 'o'; upper_value = true; break;
+    case 'U': base = 'u'; upper_value = true; break;
+    case 'a': case 'e': case 'i': case 'o': case 'u': base = cp; break;
+    case 0x0100u: base = 'a'; long_value = true; upper_value = true; break;
+    case 0x0101u: base = 'a'; long_value = true; break;
+    case 0x0112u: base = 'e'; long_value = true; upper_value = true; break;
+    case 0x0113u: base = 'e'; long_value = true; break;
+    case 0x012au: base = 'i'; long_value = true; upper_value = true; break;
+    case 0x012bu: base = 'i'; long_value = true; break;
+    case 0x014cu: base = 'o'; long_value = true; upper_value = true; break;
+    case 0x014du: base = 'o'; long_value = true; break;
+    case 0x016au: base = 'u'; long_value = true; upper_value = true; break;
+    case 0x016bu: base = 'u'; long_value = true; break;
+    default: return false;
+    }
+    if (base_lower != NULL) *base_lower = base;
+    if (is_long != NULL) *is_long = long_value;
+    if (is_upper != NULL) *is_upper = upper_value;
+    return true;
+}
+
+bool nanotts_lang_apply_combining_macron(uint32_t *lower_vowel)
+{
+    if (lower_vowel == NULL) return false;
+    switch (*lower_vowel) {
+    case 'a': *lower_vowel = 0x0101u; return true;
+    case 'e': *lower_vowel = 0x0113u; return true;
+    case 'i': *lower_vowel = 0x012bu; return true;
+    case 'o': *lower_vowel = 0x014du; return true;
+    case 'u': *lower_vowel = 0x016bu; return true;
+    default: return false;
+    }
+}
+
 bool nanotts_lang_add_pause_scaled(
     nanotts_impl_t *impl,
     nanotts_phone_t pause,

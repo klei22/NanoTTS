@@ -14,30 +14,36 @@ static int audio_write(void *user, const int16_t *samples, size_t count)
     return 0;
 }
 
+static const char *sample_for(nanotts_language_t language)
+{
+    switch (language) {
+    case NANOTTS_LANG_INDONESIAN: return "selamat pagi";
+    case NANOTTS_LANG_KISWAHILI: return "habari yako";
+    case NANOTTS_LANG_SPANISH: return "hola, buenos días";
+    case NANOTTS_LANG_MALAY: return "selamat datang";
+    case NANOTTS_LANG_MAORI: return "kia ora, Aotearoa";
+    case NANOTTS_LANG_HAWAIIAN: return "aloha Hawaiʻi";
+    default: return NULL;
+    }
+}
+
 int main(void)
 {
-    /* The application chooses a text language before it parses the text. */
-    nanotts_language_t selected = NANOTTS_LANG_SPANISH;
-    const char *text = "hola, buenos días";
+    nanotts_language_t selected;
+    const char *text;
     static nanotts_t tts;
     nanotts_options_t options;
     nanotts_parse_info_t parse;
     uint64_t total_samples = 0u;
     nanotts_result_t result;
 
-    /* Keep this sample runnable in any one-language build profile. */
-    if (!nanotts_language_available(selected)) {
-        selected = NANOTTS_LANG_KISWAHILI;
-        text = "habari yako";
-    }
-    if (!nanotts_language_available(selected)) {
-        selected = NANOTTS_LANG_INDONESIAN;
-        text = "selamat pagi";
-    }
-    if (!nanotts_language_available(selected)) {
+    if (nanotts_compiled_language_count() == 0u) {
         fprintf(stderr, "no text language module was compiled in\n");
         return 2;
     }
+    selected = nanotts_compiled_language_at(0u);
+    text = sample_for(selected);
+    if (text == NULL) return 2;
 
     result = nanotts_init(&tts, 16000u, selected);
     if (result != NANOTTS_OK) {

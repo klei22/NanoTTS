@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 #define NANOTTS_VERSION_MAJOR 0
-#define NANOTTS_VERSION_MINOR 4
+#define NANOTTS_VERSION_MINOR 5
 #define NANOTTS_VERSION_PATCH 0
 
 #ifndef NANOTTS_MAX_EVENTS
@@ -46,14 +46,22 @@ typedef enum nanotts_result {
  */
 typedef enum nanotts_language {
     NANOTTS_LANG_NONE = 0,
-    NANOTTS_LANG_INDONESIAN = 1,
-    NANOTTS_LANG_KISWAHILI = 2,
-    /* Source compatibility alias; ISO 639-1 code remains "sw". */
+#define NANOTTS_LANGUAGE(tag_, enum_, value_, code_, name_, aliases_, enabled_, parser_, profile_) \
+    NANOTTS_LANG_##enum_ = value_,
+#include "nanotts/nanotts_languages.def"
+#undef NANOTTS_LANGUAGE
+    NANOTTS_LANG_COUNT = 1
+#define NANOTTS_LANGUAGE(tag_, enum_, value_, code_, name_, aliases_, enabled_, parser_, profile_) + 1
+#include "nanotts/nanotts_languages.def"
+#undef NANOTTS_LANGUAGE
+    ,
+
+    /* Source-compatibility and explicit-scope aliases. */
     NANOTTS_LANG_SWAHILI = NANOTTS_LANG_KISWAHILI,
-    NANOTTS_LANG_SPANISH = 3,
-    /* Explicit dialect-scope alias for source readability. */
     NANOTTS_LANG_SPANISH_LATIN_AMERICAN = NANOTTS_LANG_SPANISH,
-    NANOTTS_LANG_COUNT = 4
+    NANOTTS_LANG_BAHASA_MELAYU = NANOTTS_LANG_MALAY,
+    NANOTTS_LANG_TE_REO_MAORI = NANOTTS_LANG_MAORI,
+    NANOTTS_LANG_OLELO_HAWAII = NANOTTS_LANG_HAWAIIAN
 } nanotts_language_t;
 
 typedef enum nanotts_final_tone {
@@ -144,6 +152,32 @@ typedef struct nanotts_event {
     int8_t pitch_semitones_q4;
 } nanotts_event_t;
 
+/*
+ * Compact language-level timing and intonation parameters. Pitch fields use
+ * sixteenth-semitone units (q4). Profiles are selected once per render, before
+ * the event/frame loops; no language dispatch occurs in the sample loop.
+ */
+typedef struct nanotts_prosody_profile {
+    uint16_t base_pitch_hz;
+    uint8_t vowel_duration_percent;
+    uint8_t consonant_duration_percent;
+    uint8_t word_pause_percent;
+    uint8_t phrase_pause_percent;
+    uint8_t primary_stress_duration_percent;
+    uint8_t secondary_stress_duration_percent;
+    int8_t primary_stress_pitch_q4;
+    int8_t secondary_stress_pitch_q4;
+    int8_t fall_start_q4;
+    int8_t fall_middle_q4;
+    int8_t fall_end_q4;
+    int8_t rise_start_q4;
+    int8_t rise_middle_q4;
+    int8_t rise_end_q4;
+    int8_t continue_start_q4;
+    int8_t continue_middle_q4;
+    int8_t continue_end_q4;
+} nanotts_prosody_profile_t;
+
 typedef struct nanotts_options {
     uint16_t rate_q8;       /* 256 = normal speed; larger is faster. */
     int16_t pitch_cents;    /* Global pitch shift. */
@@ -189,6 +223,8 @@ nanotts_language_t nanotts_compiled_language_at(size_t index);
 nanotts_language_t nanotts_language_from_code(const char *code);
 const char *nanotts_language_code(nanotts_language_t language);
 const char *nanotts_language_name(nanotts_language_t language);
+const nanotts_prosody_profile_t *nanotts_language_prosody(
+    nanotts_language_t language);
 
 nanotts_result_t nanotts_parse_ipa(
     nanotts_t *tts,

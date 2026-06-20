@@ -1,17 +1,61 @@
 /* SPDX-License-Identifier: MIT */
 #include "nanotts/nanotts.h"
 
+#ifndef NANOTTS_CLI_HAVE_PWM
+#define NANOTTS_CLI_HAVE_PWM 0
+#endif
+#ifndef NANOTTS_CLI_HAVE_PCM
+#define NANOTTS_CLI_HAVE_PCM 0
+#endif
+
+#if NANOTTS_CLI_HAVE_PWM
+#include "nanotts/nanotts_pwm.h"
+#endif
+#if NANOTTS_CLI_HAVE_PCM
+#include "nanotts/nanotts_pcm.h"
+#endif
+
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+typedef enum output_format {
+    OUTPUT_WAV = 0,
+    OUTPUT_PCM16LE,
+    OUTPUT_PWM16LE
+} output_format_t;
+
 typedef struct wav_writer {
     FILE *file;
     uint32_t samples;
     int failed;
 } wav_writer_t;
+
+#if NANOTTS_CLI_HAVE_PCM || NANOTTS_CLI_HAVE_PWM
+typedef struct raw_writer {
+    FILE *file;
+    int close_file;
+    int failed;
+} raw_writer_t;
+#endif
+
+#if NANOTTS_CLI_HAVE_PCM
+typedef struct pcm_file_output {
+    raw_writer_t raw;
+    nanotts_pcm16le_output_t adapter;
+    uint8_t scratch[256];
+} pcm_file_output_t;
+#endif
+
+#if NANOTTS_CLI_HAVE_PWM
+typedef struct pwm_file_output {
+    raw_writer_t raw;
+    nanotts_pwm_output_t adapter;
+    uint16_t scratch[128];
+} pwm_file_output_t;
+#endif
 
 static void put_u16le(FILE *file, uint16_t value)
 {
@@ -29,7 +73,12 @@ static void put_u32le(FILE *file, uint32_t value)
 
 static int wav_begin(wav_writer_t *writer, const char *path, uint32_t sample_rate)
 {
-    FILE *file = fopen(path, "wb");
+    FILE *file;
+    if (!strcmp(path, "-")) {
+        fprintf(stderr, "WAV output needs a seekable file; use --format pcm or pwm for stdout\n");
+        return 0;
+    }
+    file = fopen(path, "wb");
     if (file == NULL) return 0;
     writer->file = file;
     writer->samples = 0u;
@@ -77,6 +126,58 @@ static int wav_end(wav_writer_t *writer)
     return !writer->failed;
 }
 
+#if NANOTTS_CLI_HAVE_PCM || NANOTTS_CLI_HAVE_PWM
+static int raw_begin(raw_writer_t *writer, const char *path)
+{
+    writer->failed = 0;
+    if (!strcmp(path, "-")) {
+        writer->file = stdout;
+        writer->close_file = 0;
+    } else {
+        writer->file = fopen(path, "wb");
+        writer->close_file = 1;
+    }
+    return writer->file != NULL;
+}
+#endif
+
+#if NANOTTS_CLI_HAVE_PCM
+static int raw_bytes_write(void *user, const uint8_t *bytes, size_t count)
+{
+    raw_writer_t *writer = (raw_writer_t *)user;
+    if (writer == NULL || writer->file == NULL || writer->failed) return 1;
+    if (fwrite(bytes, 1u, count, writer->file) != count) {
+        writer->failed = 1;
+        return 1;
+    }
+    return 0;
+}
+#endif
+
+#if NANOTTS_CLI_HAVE_PWM
+static int raw_pwm_write(void *user, const uint16_t *values, size_t count)
+{
+    raw_writer_t *writer = (raw_writer_t *)user;
+    size_t index;
+    if (writer == NULL || writer->file == NULL || writer->failed) return 1;
+    for (index = 0u; index < count; ++index) put_u16le(writer->file, values[index]);
+    if (ferror(writer->file)) {
+        writer->failed = 1;
+        return 1;
+    }
+    return 0;
+}
+#endif
+
+#if NANOTTS_CLI_HAVE_PCM || NANOTTS_CLI_HAVE_PWM
+static int raw_end(raw_writer_t *writer)
+{
+    if (fflush(writer->file) != 0) writer->failed = 1;
+    if (writer->close_file && fclose(writer->file) != 0) writer->failed = 1;
+    return !writer->failed;
+}
+#endif
+
 static char *read_all(FILE *file, size_t *length)
 {
     size_t capacity = 4096u;
@@ -122,26 +223,63 @@ static long parse_long(const char *text, const char *name, long minimum, long ma
     return value;
 }
 
+static output_format_t parse_format(const char *value)
+{
+    if (!strcmp(value, "wav")) return OUTPUT_WAV;
+    if (!strcmp(value, "pcm") || !strcmp(value, "pcm16le") ||
+        !strcmp(value, "raw")) return OUTPUT_PCM16LE;
+    if (!strcmp(value, "pwm") || !strcmp(value, "pwm16le")) {
+        return OUTPUT_PWM16LE;
+    }
+    fprintf(stderr, "invalid output format: %s (use wav, pcm16le, or pwm16le)\n", value);
+    exit(2);
+}
+
+static int has_suffix(const char *text, const char *suffix)
+{
+    size_t text_length = strlen(text);
+    size_t suffix_length = strlen(suffix);
+    return text_length >= suffix_length &&
+           strcmp(text + text_length - suffix_length, suffix) == 0;
+}
+
+static output_format_t infer_format(const char *path)
+{
+    if (has_suffix(path, ".pcm") || has_suffix(path, ".pcm16le") ||
+        has_suffix(path, ".raw")) {
+        return OUTPUT_PCM16LE;
+    }
+    if (has_suffix(path, ".pwm") || has_suffix(path, ".pwm16le")) {
+        return OUTPUT_PWM16LE;
+    }
+    return OUTPUT_WAV;
+}
+
 static void print_usage(FILE *file)
 {
     fprintf(file,
         "NanoTTS - compact multilingual IPA/text-to-speech\n\n"
         "Usage:\n"
-        "  nanotts --lang id --text TEXT -o speech.wav [options]\n"
-        "  nanotts --lang sw --text TEXT -o speech.wav [options]\n"
-        "  nanotts --lang es --text TEXT -o speech.wav [options]\n"
-        "  nanotts --ipa IPA -o speech.wav [options]\n"
-        "  espeak-ng -q -v es-la --ipa=1 --sep=_ TEXT | \\\n"
-        "    nanotts --ipa-file - -o speech.wav\n\n"
+        "  nanotts --lang CODE --text TEXT -o speech.wav [options]\n"
+        "  nanotts --ipa IPA --format pwm -o speech.pwm [options]\n"
+        "  nanotts --list-languages\n\n"
         "Input:\n"
-        "  --lang CODE             Text language: id, sw, or es (required for text)\n"
+        "  --lang CODE             Select text language; with IPA, select prosody only\n"
         "  --ipa STRING            Speak the supported IPA subset\n"
-        "  --text STRING           Use the selected built-in text module\n"
+        "  --text STRING           Use the selected text module\n"
         "  --ipa-file PATH         Read IPA from PATH, or - for stdin\n"
         "  --text-file PATH        Read text from PATH, or - for stdin\n"
-        "  --list-languages        Show text modules compiled into this binary\n\n"
-        "Output and voice:\n"
-        "  -o, --output PATH       Mono 16-bit PCM WAV output\n"
+        "  --list-languages        Show compiled text modules\n\n"
+        "Output:\n"
+        "  -o, --output PATH       Output path; - is allowed for raw formats\n"
+        "  --format FORMAT         wav, pcm16le, or pwm16le\n"
+        "                          Inferred from .pcm/.pcm16le/.raw or\n"
+        "                          .pwm/.pwm16le; otherwise WAV\n"
+        "  --pwm-top N             PWM timer TOP/ARR, 1..65535; default 255\n"
+        "  --pwm-invert            Invert PWM compare values\n"
+        "                          PWM output is uint16 little-endian duty values,\n"
+        "                          one update per audio sample, not carrier bits\n\n"
+        "Voice:\n"
         "  --sample-rate HZ        8000..24000; default 16000\n"
         "  --speed PERCENT         38..250; default 100\n"
         "  --pitch CENTS           -1200..1200; default 0\n"
@@ -159,13 +297,12 @@ static void list_languages(void)
     size_t index;
     size_t count = nanotts_compiled_language_count();
     if (count == 0u) {
-        puts("No text language modules are compiled in (IPA input remains available).");
+        puts("No text language modules are compiled in (IPA remains available).");
         return;
     }
     for (index = 0u; index < count; ++index) {
         nanotts_language_t language = nanotts_compiled_language_at(index);
-        printf("%-3s  %s\n",
-               nanotts_language_code(language),
+        printf("%-3s  %s\n", nanotts_language_code(language),
                nanotts_language_name(language));
     }
 }
@@ -192,19 +329,38 @@ int main(int argc, char **argv)
     const char *inline_input = NULL;
     const char *input_path = NULL;
     const char *output_path = NULL;
+    const char *format_name = NULL;
     char *owned_input = NULL;
     size_t input_length = 0u;
     uint32_t sample_rate = 16000u;
+#if NANOTTS_CLI_HAVE_PWM
+    uint16_t pwm_top = 255u;
+    int pwm_invert = 0;
+#endif
     nanotts_language_t language = NANOTTS_LANG_NONE;
     int language_given = 0;
     nanotts_options_t options;
     nanotts_t tts;
     nanotts_parse_info_t info;
-    nanotts_result_t result;
-    wav_writer_t writer;
+    nanotts_result_t result = NANOTTS_OK;
+    wav_writer_t wav;
+#if NANOTTS_CLI_HAVE_PCM
+    pcm_file_output_t pcm;
+#endif
+#if NANOTTS_CLI_HAVE_PWM
+    pwm_file_output_t pwm;
+#endif
+    output_format_t format = OUTPUT_WAV;
+    nanotts_write_fn audio_write = NULL;
+    void *audio_user = NULL;
+    int output_open = 0;
+    int output_ok = 1;
     int dump_phones = 0;
     int index;
 
+    info.event_count = 0u;
+    info.error_byte = NANOTTS_NPOS;
+    info.error_codepoint = 0u;
     nanotts_default_options(&options);
 
     for (index = 1; index < argc; ++index) {
@@ -214,7 +370,8 @@ int main(int argc, char **argv)
             !strcmp(arg, "-o") || !strcmp(arg, "--output") ||
             !strcmp(arg, "--sample-rate") || !strcmp(arg, "--speed") ||
             !strcmp(arg, "--pitch") || !strcmp(arg, "--volume") ||
-            !strcmp(arg, "--lang")) {
+            !strcmp(arg, "--lang") || !strcmp(arg, "--format") ||
+            !strcmp(arg, "--pwm-top")) {
             const char *value;
             if (++index >= argc) {
                 fprintf(stderr, "%s requires a value\n", arg);
@@ -225,23 +382,28 @@ int main(int argc, char **argv)
                 language = nanotts_language_from_code(value);
                 language_given = 1;
                 if (language == NANOTTS_LANG_COUNT || language == NANOTTS_LANG_NONE) {
-                    fprintf(stderr, "invalid text language: %s (use id, sw, or es)\n", value);
+                    fprintf(stderr, "invalid text language: %s\n", value);
                     return 2;
                 }
             } else if (!strcmp(arg, "--ipa")) {
-                mode = INPUT_IPA;
-                inline_input = value;
+                mode = INPUT_IPA; inline_input = value;
             } else if (!strcmp(arg, "--text")) {
-                mode = INPUT_TEXT;
-                inline_input = value;
+                mode = INPUT_TEXT; inline_input = value;
             } else if (!strcmp(arg, "--ipa-file")) {
-                mode = INPUT_IPA;
-                input_path = value;
+                mode = INPUT_IPA; input_path = value;
             } else if (!strcmp(arg, "--text-file")) {
-                mode = INPUT_TEXT;
-                input_path = value;
+                mode = INPUT_TEXT; input_path = value;
             } else if (!strcmp(arg, "-o") || !strcmp(arg, "--output")) {
                 output_path = value;
+            } else if (!strcmp(arg, "--format")) {
+                format_name = value;
+            } else if (!strcmp(arg, "--pwm-top")) {
+#if NANOTTS_CLI_HAVE_PWM
+                pwm_top = (uint16_t)parse_long(value, "PWM top", 1, 65535);
+#else
+                fprintf(stderr, "PWM support was disabled at build time\n");
+                return 2;
+#endif
             } else if (!strcmp(arg, "--sample-rate")) {
                 sample_rate = (uint32_t)parse_long(value, "sample rate", 8000, 24000);
             } else if (!strcmp(arg, "--speed")) {
@@ -254,6 +416,13 @@ int main(int argc, char **argv)
                 long q = (percent * 255L + 50L) / 100L;
                 options.volume = (uint8_t)(q > 255L ? 255L : q);
             }
+        } else if (!strcmp(arg, "--pwm-invert")) {
+#if NANOTTS_CLI_HAVE_PWM
+            pwm_invert = 1;
+#else
+            fprintf(stderr, "PWM support was disabled at build time\n");
+            return 2;
+#endif
         } else if (!strcmp(arg, "--rise")) {
             options.final_tone = (uint8_t)NANOTTS_FINAL_RISE;
         } else if (!strcmp(arg, "--fall")) {
@@ -269,14 +438,11 @@ int main(int argc, char **argv)
         } else if (!strcmp(arg, "--dump-phones")) {
             dump_phones = 1;
         } else if (!strcmp(arg, "--list-languages")) {
-            list_languages();
-            return 0;
+            list_languages(); return 0;
         } else if (!strcmp(arg, "--version")) {
-            printf("nanotts %s\n", nanotts_version_string());
-            return 0;
+            printf("nanotts %s\n", nanotts_version_string()); return 0;
         } else if (!strcmp(arg, "-h") || !strcmp(arg, "--help")) {
-            print_usage(stdout);
-            return 0;
+            print_usage(stdout); return 0;
         } else {
             fprintf(stderr, "unknown option: %s\n", arg);
             print_usage(stderr);
@@ -290,7 +456,12 @@ int main(int argc, char **argv)
         return 2;
     }
     if (mode == INPUT_TEXT && !language_given) {
-        fprintf(stderr, "--lang id, --lang sw, or --lang es is required for text input\n");
+        fprintf(stderr, "--lang CODE is required for text input\n");
+        return 2;
+    }
+    if (language_given && !nanotts_language_available(language)) {
+        fprintf(stderr, "language '%s' is not compiled into this binary\n",
+                nanotts_language_code(language));
         return 2;
     }
     if (inline_input != NULL && input_path != NULL) {
@@ -302,21 +473,17 @@ int main(int argc, char **argv)
         input_length = strlen(inline_input);
     } else {
         FILE *input = !strcmp(input_path, "-") ? stdin : fopen(input_path, "rb");
-        if (input == NULL) {
-            perror(input_path);
-            return 1;
-        }
+        if (input == NULL) { perror(input_path); return 1; }
         owned_input = read_all(input, &input_length);
         if (input != stdin) fclose(input);
         if (owned_input == NULL) {
-            fprintf(stderr, "could not read input\n");
-            return 1;
+            fprintf(stderr, "could not read input\n"); return 1;
         }
         inline_input = owned_input;
     }
 
     result = nanotts_init(&tts, sample_rate,
-        mode == INPUT_TEXT ? language : NANOTTS_LANG_NONE);
+        language_given ? language : NANOTTS_LANG_NONE);
     if (result != NANOTTS_OK) {
         fprintf(stderr, "%s\n", nanotts_strerror(result));
         free(owned_input);
@@ -329,17 +496,68 @@ int main(int argc, char **argv)
             : nanotts_parse_text(&tts, inline_input, input_length, &info);
         if (result == NANOTTS_OK) dump_events(&tts);
     } else {
-        if (!wav_begin(&writer, output_path, sample_rate)) {
-            perror(output_path);
-            free(owned_input);
-            return 1;
+        format = format_name != NULL ? parse_format(format_name) : infer_format(output_path);
+        switch (format) {
+        case OUTPUT_WAV:
+            if (!wav_begin(&wav, output_path, sample_rate)) {
+                if (strcmp(output_path, "-") != 0) perror(output_path);
+                free(owned_input); return 1;
+            }
+            audio_write = wav_write;
+            audio_user = &wav;
+            output_open = 1;
+            break;
+        case OUTPUT_PCM16LE:
+#if NANOTTS_CLI_HAVE_PCM
+            if (!raw_begin(&pcm.raw, output_path) ||
+                nanotts_pcm16le_output_init(&pcm.adapter, pcm.scratch,
+                    sizeof(pcm.scratch), raw_bytes_write, &pcm.raw) != NANOTTS_OK) {
+                if (strcmp(output_path, "-") != 0) perror(output_path);
+                free(owned_input); return 1;
+            }
+            audio_write = nanotts_pcm16le_write_pcm;
+            audio_user = &pcm.adapter;
+            output_open = 1;
+#else
+            fprintf(stderr, "raw PCM support was disabled at build time\n");
+            free(owned_input); return 1;
+#endif
+            break;
+        case OUTPUT_PWM16LE:
+#if NANOTTS_CLI_HAVE_PWM
+            if (!raw_begin(&pwm.raw, output_path) ||
+                nanotts_pwm_output_init(&pwm.adapter, pwm_top, pwm_invert,
+                    pwm.scratch, sizeof(pwm.scratch) / sizeof(pwm.scratch[0]),
+                    raw_pwm_write, &pwm.raw) != NANOTTS_OK) {
+                if (strcmp(output_path, "-") != 0) perror(output_path);
+                free(owned_input); return 1;
+            }
+            audio_write = nanotts_pwm_write_pcm;
+            audio_user = &pwm.adapter;
+            output_open = 1;
+#else
+            fprintf(stderr, "PWM support was disabled at build time\n");
+            free(owned_input); return 1;
+#endif
+            break;
         }
+
         result = mode == INPUT_IPA
             ? nanotts_speak_ipa(&tts, inline_input, input_length, &options,
-                              wav_write, &writer, &info)
+                               audio_write, audio_user, &info)
             : nanotts_speak_text(&tts, inline_input, input_length, &options,
-                               wav_write, &writer, &info);
-        if (!wav_end(&writer) && result == NANOTTS_OK) {
+                                audio_write, audio_user, &info);
+
+        if (output_open) {
+            if (format == OUTPUT_WAV) output_ok = wav_end(&wav);
+#if NANOTTS_CLI_HAVE_PCM
+            else if (format == OUTPUT_PCM16LE) output_ok = raw_end(&pcm.raw);
+#endif
+#if NANOTTS_CLI_HAVE_PWM
+            else if (format == OUTPUT_PWM16LE) output_ok = raw_end(&pwm.raw);
+#endif
+        }
+        if (!output_ok && result == NANOTTS_OK) {
             fprintf(stderr, "failed while writing %s\n", output_path);
             result = NANOTTS_ERR_CALLBACK_ABORTED;
         }

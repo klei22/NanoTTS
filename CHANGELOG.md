@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.5.0 — 2026-06-19
+
+- Added a central compile-time language registry used to generate stable public
+  IDs, canonical codes, names, aliases, availability enumeration, parser
+  dispatch, and prosody-profile mapping.
+- Preserved direct parser calls in one-language builds and one switch per text
+  utterance in multilingual builds; the renderer retains no language branch in
+  its phone, frame, or sample loops.
+- Added compact per-language timing and F0 profiles for IPA/default,
+  Indonesian, Kiswahili, Spanish, Malay, Māori, and Hawaiian.
+- Added optional Malay (`ms`) text support with Malay Rumi digraphs, final
+  `ai/au/oi`, a small `e` pepet/taling aid, explicit `é/è/ê`, numbers,
+  acronyms, and punctuation contours.
+- Added optional Māori (`mi`) support with macrons, combining macrons, doubled
+  long-vowel spelling, `wh`, `ng`, tap `r`, common closing diphthongs,
+  digit names, and compact stress assignment.
+- Added optional Hawaiian (`haw`) support with ʻokina aliases, kahakō,
+  combining macrons, common diphthongs, digit names, and compact moraic stress.
+- Added separate optional `NanoTTS::PWM` and `NanoTTS::PCM` adapter libraries.
+  The PWM adapter emits timer compare values with division-free per-sample
+  scaling; the PCM adapter emits signed 16-bit little-endian bytes.
+- Extended the CLI with WAV, PCM16LE, and PWM16LE output, PWM TOP and inversion
+  controls, stdout support for raw formats, and language-selected prosody for
+  IPA input.
+- Added `--outputs` to `setup.sh`, MCU PWM integration examples, output adapter
+  documentation, adapter integration tests, six-language build profiles, and
+  new smoke corpora.
+- Preserved code/name alias recognition for known languages even in compact
+  builds where the corresponding parser is unavailable; availability remains a
+  separate API query.
+- Added an output-adapter extension guide and validated installation/consumption
+  of the core, PWM, and PCM CMake targets.
+
 ## 0.4.0 — 2026-06-19
 
 - Added optional Spanish (`es`) text support with a documented neutral

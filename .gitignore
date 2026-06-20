@@ -31,7 +31,10 @@
 # Generated audio and analysis artifacts
 *.wav
 *.pcm
+*.pcm16le
 *.raw
+*.pwm
+*.pwm16le
 *.png
 
 # Coverage and profiling output

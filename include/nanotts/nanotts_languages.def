@@ -1,0 +1,35 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * NanoTTS language registry.
+ *
+ * This file intentionally has no include guard. Define NANOTTS_LANGUAGE before
+ * including it. Append new entries; never renumber existing public IDs.
+ *
+ * Fields:
+ *   short tag, public enum token, stable numeric ID, canonical code, name,
+ *   pipe-separated aliases, build-enable macro, parser function, profile token
+ */
+NANOTTS_LANGUAGE(
+    ID, INDONESIAN, 1, "id", "Indonesian",
+    "id|id-id|id_id|indonesian|bahasa|bahasa-indonesia|bahasa_indonesia",
+    NANOTTS_ENABLE_LANG_ID, nanotts_lang_id_parse_text, ID)
+NANOTTS_LANGUAGE(
+    SW, KISWAHILI, 2, "sw", "Kiswahili",
+    "sw|sw-ke|sw_ke|sw-tz|sw_tz|swahili|kiswahili",
+    NANOTTS_ENABLE_LANG_SW, nanotts_lang_sw_parse_text, SW)
+NANOTTS_LANGUAGE(
+    ES, SPANISH, 3, "es", "Spanish (Latin American)",
+    "es|es-419|es_419|es-la|es_la|es-mx|es_mx|spanish|espanol|español|ESPAÑOL|castilian|castellano",
+    NANOTTS_ENABLE_LANG_ES, nanotts_lang_es_parse_text, ES)
+NANOTTS_LANGUAGE(
+    MS, MALAY, 4, "ms", "Malay",
+    "ms|ms-my|ms_my|malay|bahasa-melayu|bahasa_melayu|bahasa-malaysia|bahasa_malaysia",
+    NANOTTS_ENABLE_LANG_MS, nanotts_lang_ms_parse_text, MS)
+NANOTTS_LANGUAGE(
+    MI, MAORI, 5, "mi", "Māori",
+    "mi|mi-nz|mi_nz|maori|māori|MĀORI|te-reo|te_reo|te-reo-maori|te_reo_maori|te-reo-māori|te_reo_māori",
+    NANOTTS_ENABLE_LANG_MI, nanotts_lang_mi_parse_text, MI)
+NANOTTS_LANGUAGE(
+    HAW, HAWAIIAN, 6, "haw", "Hawaiian",
+    "haw|haw-us|haw_us|hawaiian|olelo-hawaii|olelo_hawaii|ʻōlelo-hawaiʻi|ʻōlelo_hawaiʻi",
+    NANOTTS_ENABLE_LANG_HAW, nanotts_lang_haw_parse_text, HAW)

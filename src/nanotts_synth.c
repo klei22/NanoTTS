@@ -569,33 +569,36 @@ static float glottal_source(nanotts_impl_t *impl, float f0)
     return (0.72f * derivative + 0.28f * impl->source_tilt_1) * 5.0f;
 }
 
-static float event_pitch_multiplier(const nanotts_event_t *event)
+static float event_pitch_multiplier(
+    const nanotts_event_t *event,
+    const nanotts_prosody_profile_t *profile)
 {
-    float semitones = (float)event->pitch_semitones_q4 / 16.0f;
+    int pitch_q4 = (int)event->pitch_semitones_q4;
     if ((event->flags & NANOTTS_EVENT_STRESS_PRIMARY) != 0u) {
-        semitones += 0.78f;
+        pitch_q4 += (int)profile->primary_stress_pitch_q4;
     } else if ((event->flags & NANOTTS_EVENT_STRESS_SECONDARY) != 0u) {
-        semitones += 0.34f;
+        pitch_q4 += (int)profile->secondary_stress_pitch_q4;
     }
-    return nanotts_exp2(semitones / 12.0f);
+    return nanotts_exp2(((float)pitch_q4 / 16.0f) / 12.0f);
 }
 
 static float event_pitch_at(
     const nanotts_impl_t *impl,
+    const nanotts_prosody_profile_t *profile,
     size_t event_index,
     float progress)
 {
-    float current = event_pitch_multiplier(&impl->events[event_index]);
+    float current = event_pitch_multiplier(&impl->events[event_index], profile);
     float previous = current;
     float next = current;
 
     if (event_index > 0u &&
         !nanotts_phone_is_pause((nanotts_phone_t)impl->events[event_index - 1u].phone)) {
-        previous = event_pitch_multiplier(&impl->events[event_index - 1u]);
+        previous = event_pitch_multiplier(&impl->events[event_index - 1u], profile);
     }
     if (event_index + 1u < impl->event_count &&
         !nanotts_phone_is_pause((nanotts_phone_t)impl->events[event_index + 1u].phone)) {
-        next = event_pitch_multiplier(&impl->events[event_index + 1u]);
+        next = event_pitch_multiplier(&impl->events[event_index + 1u], profile);
     }
 
     if (progress < 0.25f) {
@@ -609,44 +612,79 @@ static float event_pitch_at(
 }
 
 static float contour_multiplier(
+    const nanotts_prosody_profile_t *profile,
     nanotts_final_tone_t final_tone,
     float phrase_progress)
 {
     float p = nanotts_clampf(phrase_progress, 0.0f, 1.0f);
-    float final = nanotts_smoothstep((p - 0.67f) / 0.33f);
+    float local;
+    float q4;
+    int start_q4;
+    int middle_q4;
+    int end_q4;
+
     switch (final_tone) {
     case NANOTTS_FINAL_RISE:
-        return 1.04f - 0.08f * p + 0.30f * final;
+        start_q4 = profile->rise_start_q4;
+        middle_q4 = profile->rise_middle_q4;
+        end_q4 = profile->rise_end_q4;
+        break;
     case NANOTTS_FINAL_CONTINUE:
-        return 1.05f - 0.07f * p + 0.11f * final;
+        start_q4 = profile->continue_start_q4;
+        middle_q4 = profile->continue_middle_q4;
+        end_q4 = profile->continue_end_q4;
+        break;
     case NANOTTS_FINAL_LEVEL:
         return 1.0f;
     case NANOTTS_FINAL_AUTO:
     case NANOTTS_FINAL_FALL:
     default:
-        return 1.08f - 0.16f * p - 0.10f * final;
+        start_q4 = profile->fall_start_q4;
+        middle_q4 = profile->fall_middle_q4;
+        end_q4 = profile->fall_end_q4;
+        break;
     }
+
+    if (p < 0.65f) {
+        local = nanotts_smoothstep(p / 0.65f);
+        q4 = nanotts_lerp((float)start_q4, (float)middle_q4, local);
+    } else {
+        local = nanotts_smoothstep((p - 0.65f) / 0.35f);
+        q4 = nanotts_lerp((float)middle_q4, (float)end_q4, local);
+    }
+    return nanotts_exp2((q4 / 16.0f) / 12.0f);
 }
 
 static size_t event_samples(
     const nanotts_event_t *event,
     const nanotts_phone_def_t *def,
     uint32_t sample_rate,
-    const nanotts_options_t *options)
+    const nanotts_options_t *options,
+    const nanotts_prosody_profile_t *profile)
 {
     float ms = (float)def->duration_ms;
     float rate = options->rate_q8 == 0u ? 1.0f : (float)options->rate_q8 / 256.0f;
+    bool syllabic = (event->flags & NANOTTS_EVENT_SYLLABIC) != 0u;
+    bool vowel_like = def->kind == NANOTTS_KIND_VOWEL ||
+                      def->kind == NANOTTS_KIND_DIPHTHONG || syllabic;
+
     ms *= (float)(event->duration_percent == 0u ? 100u : event->duration_percent) / 100.0f;
-    if ((event->flags & NANOTTS_EVENT_STRESS_PRIMARY) != 0u &&
-        (def->kind == NANOTTS_KIND_VOWEL ||
-         def->kind == NANOTTS_KIND_DIPHTHONG ||
-         (event->flags & NANOTTS_EVENT_SYLLABIC) != 0u)) {
-        ms *= 1.08f;
+    if (def->kind == NANOTTS_KIND_PAUSE) {
+        unsigned pause_scale = event->phone == (uint8_t)NANOTTS_PH_PHRASE_PAUSE
+            ? profile->phrase_pause_percent
+            : profile->word_pause_percent;
+        ms *= (float)pause_scale / 100.0f;
+    } else if (vowel_like) {
+        ms *= (float)profile->vowel_duration_percent / 100.0f;
+    } else {
+        ms *= (float)profile->consonant_duration_percent / 100.0f;
+    }
+
+    if ((event->flags & NANOTTS_EVENT_STRESS_PRIMARY) != 0u && vowel_like) {
+        ms *= (float)profile->primary_stress_duration_percent / 100.0f;
     } else if ((event->flags & NANOTTS_EVENT_STRESS_SECONDARY) != 0u &&
-               (def->kind == NANOTTS_KIND_VOWEL ||
-                def->kind == NANOTTS_KIND_DIPHTHONG ||
-                (event->flags & NANOTTS_EVENT_SYLLABIC) != 0u)) {
-        ms *= 1.04f;
+               vowel_like) {
+        ms *= (float)profile->secondary_stress_duration_percent / 100.0f;
     }
     ms /= nanotts_clampf(rate, 0.45f, 2.50f);
     ms = nanotts_clampf(ms, 12.0f, 600.0f);
@@ -806,14 +844,15 @@ static size_t phrase_total_samples(
     const nanotts_impl_t *impl,
     size_t start,
     size_t end,
-    const nanotts_options_t *options)
+    const nanotts_options_t *options,
+    const nanotts_prosody_profile_t *profile)
 {
     size_t i;
     size_t total = 0u;
     for (i = start; i < end && i < impl->event_count; ++i) {
         nanotts_phone_t phone = (nanotts_phone_t)impl->events[i].phone;
         total += event_samples(&impl->events[i], nanotts_phone_def(phone),
-                               impl->sample_rate, options);
+                               impl->sample_rate, options, profile);
     }
     return total > 0u ? total : 1u;
 }
@@ -845,6 +884,7 @@ nanotts_result_t nanotts_synth_render(
     size_t current_phrase_total = 1u;
     size_t current_phrase_elapsed = 0u;
     nanotts_final_tone_t current_phrase_tone = NANOTTS_FINAL_FALL;
+    const nanotts_prosody_profile_t *profile;
     float global_pitch;
     float volume;
     nanotts_result_t result;
@@ -858,11 +898,14 @@ nanotts_result_t nanotts_synth_render(
         return NANOTTS_ERR_ARGUMENT;
     }
 
+    profile = nanotts_language_prosody((nanotts_language_t)impl->language);
+    if (profile == NULL) profile = nanotts_language_prosody(NANOTTS_LANG_NONE);
+
     clear_runtime_state(impl);
     global_pitch = nanotts_exp2((float)options->pitch_cents / 1200.0f);
     volume = (float)options->volume / 255.0f;
     current_phrase_total = phrase_total_samples(
-        impl, current_phrase_start, current_phrase_end, options);
+        impl, current_phrase_start, current_phrase_end, options, profile);
     current_phrase_tone = phrase_tone(
         impl, current_phrase_end, options->final_tone);
 
@@ -873,7 +916,8 @@ nanotts_result_t nanotts_synth_render(
         const nanotts_event_t *event = &impl->events[event_index];
         nanotts_phone_t phone = (nanotts_phone_t)event->phone;
         const nanotts_phone_def_t *def = nanotts_phone_def(phone);
-        size_t total_samples = event_samples(event, def, impl->sample_rate, options);
+        size_t total_samples = event_samples(
+            event, def, impl->sample_rate, options, profile);
         size_t frame_samples = (size_t)impl->sample_rate * NANOTTS_FRAME_MS / 1000u;
         size_t sample_index = 0u;
 
@@ -882,7 +926,7 @@ nanotts_result_t nanotts_synth_render(
             current_phrase_start = event_index;
             current_phrase_end = phrase_end_index(impl, event_index);
             current_phrase_total = phrase_total_samples(
-                impl, current_phrase_start, current_phrase_end, options);
+                impl, current_phrase_start, current_phrase_end, options, profile);
             current_phrase_tone = phrase_tone(
                 impl, current_phrase_end, options->final_tone);
             current_phrase_elapsed = 0u;
@@ -910,8 +954,9 @@ nanotts_result_t nanotts_synth_render(
             } else {
                 phrase_progress = 1.0f;
             }
-            f0 = 126.0f * global_pitch * event_pitch_at(impl, event_index, mid_progress) *
-                 contour_multiplier(current_phrase_tone, phrase_progress);
+            f0 = (float)profile->base_pitch_hz * global_pitch *
+                 event_pitch_at(impl, profile, event_index, mid_progress) *
+                 contour_multiplier(profile, current_phrase_tone, phrase_progress);
             f0 = nanotts_clampf(f0, 65.0f, 360.0f);
 
             for (k = 0u; k < frame_count; ++k) {

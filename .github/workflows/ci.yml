@@ -22,31 +22,24 @@ jobs:
       - run: ./build/nanotts --lang id --text "selamat pagi" -o id.wav
       - run: ./build/nanotts --lang sw --text "habari yako" -o sw.wav
       - run: ./build/nanotts --lang es --text "hola, buenos días" -o es.wav
+      - run: ./build/nanotts --lang ms --text "selamat pagi" -o ms.wav
+      - run: ./build/nanotts --lang mi --text "kia ora, Aotearoa" -o mi.wav
+      - run: ./build/nanotts --lang haw --text "aloha Hawaiʻi" -o haw.wav
+      - run: ./build/nanotts --ipa "h_a_l_o" --format pcm -o speech.pcm
+      - run: ./build/nanotts --ipa "h_a_l_o" --format pwm --pwm-top 1023 -o speech.pwm
+      - run: test -s speech.pcm && test -s speech.pwm
 
   module-selection:
     strategy:
       matrix:
         include:
-          - profile: id
-            text: ON
-            id: ON
-            sw: OFF
-            es: OFF
-          - profile: sw
-            text: ON
-            id: OFF
-            sw: ON
-            es: OFF
-          - profile: es
-            text: ON
-            id: OFF
-            sw: OFF
-            es: ON
-          - profile: ipa
-            text: OFF
-            id: OFF
-            sw: OFF
-            es: OFF
+          - { profile: id,  text: ON,  id: ON,  sw: OFF, es: OFF, ms: OFF, mi: OFF, haw: OFF }
+          - { profile: sw,  text: ON,  id: OFF, sw: ON,  es: OFF, ms: OFF, mi: OFF, haw: OFF }
+          - { profile: es,  text: ON,  id: OFF, sw: OFF, es: ON,  ms: OFF, mi: OFF, haw: OFF }
+          - { profile: ms,  text: ON,  id: OFF, sw: OFF, es: OFF, ms: ON,  mi: OFF, haw: OFF }
+          - { profile: mi,  text: ON,  id: OFF, sw: OFF, es: OFF, ms: OFF, mi: ON,  haw: OFF }
+          - { profile: haw, text: ON,  id: OFF, sw: OFF, es: OFF, ms: OFF, mi: OFF, haw: ON  }
+          - { profile: ipa, text: OFF, id: OFF, sw: OFF, es: OFF, ms: OFF, mi: OFF, haw: OFF }
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,6 +50,9 @@ jobs:
           -DNANOTTS_ENABLE_LANG_ID=${{ matrix.id }}
           -DNANOTTS_ENABLE_LANG_SW=${{ matrix.sw }}
           -DNANOTTS_ENABLE_LANG_ES=${{ matrix.es }}
+          -DNANOTTS_ENABLE_LANG_MS=${{ matrix.ms }}
+          -DNANOTTS_ENABLE_LANG_MI=${{ matrix.mi }}
+          -DNANOTTS_ENABLE_LANG_HAW=${{ matrix.haw }}
           -DNANOTTS_USE_LIBM=OFF
           -DNANOTTS_MAX_EVENTS=128
           -DNANOTTS_CONTEXT_BYTES=1024
@@ -66,6 +62,31 @@ jobs:
       - run: ctest --test-dir build --output-on-failure
       - run: ./build/nanotts --list-languages
 
+  output-selection:
+    strategy:
+      matrix:
+        include:
+          - { pwm: ON,  pcm: OFF }
+          - { pwm: OFF, pcm: ON  }
+          - { pwm: OFF, pcm: OFF }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=MinSizeRel
+          -DNANOTTS_BUILD_PWM=${{ matrix.pwm }}
+          -DNANOTTS_BUILD_PCM=${{ matrix.pcm }}
+          -DNANOTTS_ENABLE_LANG_ID=ON
+          -DNANOTTS_ENABLE_LANG_SW=OFF
+          -DNANOTTS_ENABLE_LANG_ES=OFF
+          -DNANOTTS_ENABLE_LANG_MS=OFF
+          -DNANOTTS_ENABLE_LANG_MI=OFF
+          -DNANOTTS_ENABLE_LANG_HAW=OFF
+      - run: cmake --build build --parallel
+      - run: ctest --test-dir build --output-on-failure
+      - run: ./build/nanotts --lang id --text "sistem siap" -o speech.wav
+
   makefile:
     runs-on: ubuntu-latest
     steps:
@@ -74,3 +95,7 @@ jobs:
       - run: ./build-make/nanotts --lang id --text "selamat pagi" -o id.wav
       - run: ./build-make/nanotts --lang sw --text "habari yako" -o sw.wav
       - run: ./build-make/nanotts --lang es --text "hola, buenos días" -o es.wav
+      - run: ./build-make/nanotts --lang ms --text "apa khabar" -o ms.wav
+      - run: ./build-make/nanotts --lang mi --text "kia ora" -o mi.wav
+      - run: ./build-make/nanotts --lang haw --text "aloha" -o haw.wav
+      - run: ./build-make/nanotts --ipa "h_a_l_o" --format pwm -o speech.pwm

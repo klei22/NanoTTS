@@ -41,7 +41,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("corpus", type=pathlib.Path,
                         help="UTF-8 file with one phrase per line")
-    parser.add_argument("--lang", choices=("id", "sw", "es"), default="id",
+    parser.add_argument("--lang", default="id",
                         help="eSpeak language/voice code; default: id")
     parser.add_argument("--voice",
                         help="override the eSpeak voice while retaining --lang metadata")

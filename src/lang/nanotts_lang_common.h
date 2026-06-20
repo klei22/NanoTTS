@@ -14,6 +14,15 @@ bool nanotts_lang_decode_utf8(
     uint32_t *cp,
     size_t *width);
 
+/* Normalize Polynesian short/long vowels without a Unicode library. */
+bool nanotts_lang_macron_vowel(
+    uint32_t cp,
+    uint32_t *base_lower,
+    bool *is_long,
+    bool *is_upper);
+
+bool nanotts_lang_apply_combining_macron(uint32_t *lower_vowel);
+
 bool nanotts_lang_add_pause_scaled(
     nanotts_impl_t *impl,
     nanotts_phone_t pause,

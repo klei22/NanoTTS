@@ -1,9 +1,10 @@
 # `nanotts-ipa/1` input profile
 
-This document defines the finite UTF-8 IPA subset accepted by NanoTTS 0.4. It
-covers the current Indonesian, Kiswahili, and Spanish phone inventory and
-selected aliases used by separated external IPA output. It is intentionally not a general IPA
-engine: strict rejection is smaller and safer than guessing on an MCU.
+This document defines the finite UTF-8 IPA subset accepted by NanoTTS 0.5. It
+covers the shared phone inventory used by Indonesian, Kiswahili, Spanish,
+Malay, Māori, and Hawaiian, plus selected aliases used by separated external
+IPA output. It is intentionally not a general IPA engine: strict rejection is
+smaller and safer than guessing on an MCU.
 
 ## Recommended external format
 

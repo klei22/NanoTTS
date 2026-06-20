@@ -5,6 +5,11 @@
  * Copy this file to nanotts_lang_xx.c, replace XX/xx, and keep all language
  * work here. A module performs UTF-8 text normalization and G2P only. It emits
  * common nanotts_event_t phone IDs; it never renders samples itself.
+ *
+ * After implementation, append an entry to nanotts_languages.def, add the
+ * module's build option/source selection, define NANOTTS_PROFILE_XX in
+ * nanotts_prosody.c, and add single-/multi-language tests. See
+ * docs/ADDING_A_LANGUAGE.md.
  */
 #include "lang/nanotts_lang_common.h"
 

@@ -1,216 +1,204 @@
-# Supported languages
+# Text-language modules
 
-NanoTTS 0.4 contains three optional text modules. Each module normalizes UTF-8
-text into the same compact phone-event vocabulary and then leaves all timing,
-prosody, synthesis, and PCM delivery to the shared renderer.
+NanoTTS text modules are deliberately small orthography-to-event frontends.
+They normalize UTF-8 text, choose common phone IDs, mark lexical prominence and
+phrase boundaries, and expand a bounded set of numbers/acronyms. They do not
+contain an acoustic renderer or audio driver.
 
-| Code | Public selector | Build option | Module |
+The modules share one voice and one strict IPA override path. They are useful
+for ordinary embedded prompts, but they are not full linguistic dictionaries.
+Names, code-switching, uncommon loanwords, regional variants, and lexical
+ambiguities may require explicit IPA.
+
+## Build and selection table
+
+| Code | Public ID | CMake option | Setup example |
 |---|---|---|---|
-| `id` | `NANOTTS_LANG_INDONESIAN` | `NANOTTS_ENABLE_LANG_ID` | `nanotts_lang_id.c` |
-| `sw` | `NANOTTS_LANG_KISWAHILI` | `NANOTTS_ENABLE_LANG_SW` | `nanotts_lang_sw.c` |
-| `es` | `NANOTTS_LANG_SPANISH` | `NANOTTS_ENABLE_LANG_ES` | `nanotts_lang_es.c` |
+| `id` | `NANOTTS_LANG_INDONESIAN` | `NANOTTS_ENABLE_LANG_ID` | `--languages id` |
+| `sw` | `NANOTTS_LANG_KISWAHILI` | `NANOTTS_ENABLE_LANG_SW` | `--languages sw` |
+| `es` | `NANOTTS_LANG_SPANISH` | `NANOTTS_ENABLE_LANG_ES` | `--languages es` |
+| `ms` | `NANOTTS_LANG_MALAY` | `NANOTTS_ENABLE_LANG_MS` | `--languages ms` |
+| `mi` | `NANOTTS_LANG_MAORI` | `NANOTTS_ENABLE_LANG_MI` | `--languages mi` |
+| `haw` | `NANOTTS_LANG_HAWAIIAN` | `NANOTTS_ENABLE_LANG_HAW` | `--languages haw` |
 
-`NANOTTS_LANG_SWAHILI` aliases `NANOTTS_LANG_KISWAHILI`.
-`NANOTTS_LANG_SPANISH_LATIN_AMERICAN` aliases `NANOTTS_LANG_SPANISH` to make
-the current Spanish dialect policy explicit. CLI and wire codes remain the
-ISO 639-1 forms `id`, `sw`, and `es`.
+Language IDs are stable append-only values declared through
+`include/nanotts/nanotts_languages.def`. Applications should store canonical
+language codes rather than the position returned by
+`nanotts_compiled_language_at`.
 
-## Selecting a language
+## Indonesian — `id`
 
-Text parsing requires a selection before the call:
+Implemented scope:
 
-```c
-nanotts_init(&tts, 16000u, NANOTTS_LANG_INDONESIAN);
-nanotts_speak_text(&tts, "selamat pagi", NANOTTS_NPOS,
-                   &options, write_pcm, user, &info);
+- Latin-script Indonesian text.
+- `ng`, `ny`, `sy`, and `kh`.
+- `c` as the shared `/tʃ/` phone and `j` as `/dʒ/`.
+- `ai`, `au`, and `oi` diphthong events in common positions.
+- A small independently authored table for common plain-`e` choices.
+- Explicit `é`, `è`, and `ê` overrides.
+- Indonesian cardinal integers, common acronym behavior, and punctuation.
+- Mild language-specific timing and intonation profile.
 
-nanotts_set_language(&tts, NANOTTS_LANG_KISWAHILI);
-nanotts_speak_text(&tts, "habari yako", NANOTTS_NPOS,
-                   &options, write_pcm, user, &info);
+Limitations:
 
-nanotts_set_language(&tts, NANOTTS_LANG_SPANISH);
-nanotts_speak_text(&tts, "hola, buenos días", NANOTTS_NPOS,
-                   &options, write_pcm, user, &info);
-```
+- Plain `e` remains lexically ambiguous outside the bounded table.
+- Some final `k` realizations and regional allophones need IPA.
+- Foreign names and code-switching are not dictionary-backed.
 
-The CLI makes the selection explicit:
+## Kiswahili — `sw`
+
+Implemented scope:
+
+- Five-vowel Latin orthography.
+- `ch`, `sh`, `ny`, `th`, `dh`, `gh`, and `kh`.
+- `ng'`/`ng’` as `/ŋ/` and plain `ng` as `/ŋɡ/`.
+- Common prenasalized sequences and compact syllabic-initial-nasal handling.
+- Adjacent vowels remain separate events.
+- Usual penultimate prominence.
+- Kiswahili cardinal integers, acronyms, and punctuation.
+
+Limitations:
+
+- Arabic loans, dialectal variants, proper names, and implosive distinctions
+  are not exhaustively represented.
+- The shared renderer approximates several prenasalized clusters as event
+  sequences rather than dedicated acoustic units.
+
+## Spanish — `es`
+
+The current module intentionally models a neutral Latin-American-style
+baseline rather than every Spanish dialect.
+
+Implemented scope:
+
+- Five-vowel system, written accents, default stress, and common decomposed
+  Unicode accent sequences.
+- Seseo and yeísmo.
+- `ch`, `ll`, `rr`, `ñ`, silent `h`, `qu`, `gu`, and `gü`.
+- Contextual hard/soft `c` and `g`.
+- Tap versus trill.
+- Common weak-vowel groups, diphthongs, and accented hiatus.
+- Lightweight within-word `/b~β/`, `/d~ð/`, and `/g~ɣ/` allophony.
+- Spanish cardinal integers, acronyms, and inverted punctuation.
+
+Limitations:
+
+- Castilian `/θ/` for `c/z`, lleísmo, regional `s` aspiration, and dialectal
+  prosody are not selected automatically.
+- Lexical stress exceptions without a written accent may need IPA.
+- Proper names and foreign words are not dictionary-backed.
+
+`NANOTTS_LANG_SPANISH_LATIN_AMERICAN` is a source alias for the same module.
+
+## Malay — `ms`
+
+Implemented scope:
+
+- Latin-script Malay text.
+- Digraphs `ng`, `ny`, `sy`, `kh`, and `gh`.
+- Diphthongs `ai`, `au`, and `oi`.
+- `c` as `/tʃ/`, `j` as `/dʒ/`, and common fallback letters for names.
+- Plain `e` defaults to schwa with a small independently authored exception
+  table for common close/open realizations.
+- Explicit `é` for close `/e/`, `è` for open `/ɛ/`, and `ê` for schwa.
+- Penultimate prominence, Malay cardinal integers, acronyms, and punctuation.
+
+Limitations:
+
+- The two pronunciations traditionally written with `e` are lexical; the small
+  exception set cannot cover every word.
+- Malaysian, Bruneian, Singaporean, and other regional pronunciation details
+  are not independently selectable.
+- Arabic and English loans may require IPA.
+
+`NANOTTS_LANG_BAHASA_MELAYU` is a source alias for the same module.
+
+## Māori — `mi`
+
+Implemented scope:
+
+- The five short vowels and precomposed or decomposed macrons.
+- `ng` as `/ŋ/`.
+- `wh` as the common `/f/`-like default.
+- `r` as a tap.
+- Common Māori vowel groups; `ai`, `au`, and `oi` reuse compact moving-vowel
+  events, while other groups are represented by paired vowel events.
+- A compact prominence rule: first long vowel, otherwise first recognized
+  vowel group, otherwise first vowel; long words may receive secondary stress.
+- Digit-by-digit Māori number names and punctuation.
+
+Limitations:
+
+- Iwi-specific `wh`, `r`, vowel, and prosodic variation is not modeled.
+- Compounds and morphologically complex words can have lexical stress not
+  recoverable from spelling alone.
+- Number handling is digit-by-digit rather than full Māori cardinal grammar.
+- Loanword consonants are accepted through pragmatic fallbacks, not a lexicon.
+
+`NANOTTS_LANG_TE_REO_MAORI` is a source alias for the same module.
+
+## Hawaiian — `haw`
+
+Implemented scope:
+
+- Five vowels and precomposed or decomposed kahakō/macrons.
+- U+02BB ʻokina as a glottal stop, plus several common input approximations.
+- Common Hawaiian vowel groups; `ai`, `au`, and `oi` reuse compact moving-vowel
+  events and other groups use paired events.
+- Heavy long vowels and diphthongs receive prominence; otherwise the compact
+  rule selects the penultimate mora.
+- Digit-by-digit Hawaiian number names and punctuation.
+- A language-specific slower vowel and question-contour profile.
+
+Limitations:
+
+- Regional and lexical `w`/`v`, `k`/`t`, and other pronunciation variation is
+  not inferred.
+- Compound stress and lexical exceptions may require IPA.
+- Number handling is digit-by-digit rather than full Hawaiian cardinal grammar.
+- ASCII apostrophe is accepted as a convenience, but U+02BB is the canonical
+  ʻokina for new text.
+
+`NANOTTS_LANG_OLELO_HAWAII` is a source alias for the same module.
+
+## Shared Polynesian implementation
+
+Māori and Hawaiian use a shared removable source file for UTF-8 normalization,
+macron handling, bounded vowel-nucleus analysis, digit spelling, punctuation,
+and event emission. The selected dialect is resolved once when parsing a word.
+This sharing reduces flash in a dual `mi,haw` build; it does not add a branch to
+the renderer or sample loop.
+
+## Per-language prosody
+
+Each compiled module contributes one small immutable
+`nanotts_prosody_profile_t`. It controls:
+
+- base pitch;
+- vowel and consonant duration scales;
+- word and phrase pause scales;
+- primary and secondary stress duration/pitch;
+- fall, rise, and continuation contours.
+
+The profile is selected once at the start of `nanotts_render_events`. A disabled
+language's profile is not instantiated, and querying it returns the neutral IPA
+profile. Pronunciation decisions remain in the text module; the profile cannot
+fix an incorrect phone sequence.
+
+## Choosing text versus IPA
+
+Use text mode for ordinary prompts whose spelling is regular:
 
 ```sh
-nanotts --lang id --text "terima kasih" -o id.wav
-nanotts --lang sw --text "asante sana" -o sw.wav
-nanotts --lang es --text "el sistema está listo" -o es.wav
+nanotts --lang ms --text "bateri hampir habis" -o warning.wav
 ```
 
-IPA input does not require a text language. Use `NANOTTS_LANG_NONE` or omit
-`--lang` with `--ipa` and `--ipa-file`.
-
-Available-module discovery is static and allocation-free:
-
-```c
-for (size_t i = 0; i < nanotts_compiled_language_count(); ++i) {
-    nanotts_language_t lang = nanotts_compiled_language_at(i);
-    printf("%s: %s\n", nanotts_language_code(lang),
-           nanotts_language_name(lang));
-}
-```
-
-## Indonesian (`id`)
-
-The Indonesian module includes:
-
-- regular Latin-letter mappings;
-- `ng`, `ny`, `sy`, and `kh`;
-- `c` as the voiceless affricate and `j` as the voiced affricate;
-- `ai`, `au`, and `oi` diphthong events;
-- a small independently authored aid for ambiguous plain `e`;
-- explicit `é`, `è`, and `ê` controls;
-- integer expansion through the unsigned 32-bit range;
-- conservative spelling of likely all-uppercase acronyms;
-- punctuation boundaries and question flags.
-
-Principal limitations are lexical choice among `/e/`, `/ɛ/`, and schwa;
-diphthong versus hiatus; final glottal realization; and foreign names or
-code-switching. Explicit IPA is authoritative when pronunciation matters.
-
-## Kiswahili (`sw`)
-
-The Kiswahili module targets compact Standard Kiswahili and includes:
-
-- five stable written vowels, with adjacent vowels retained as separate nuclei;
-- automatic primary stress on the penultimate vowel nucleus;
-- `ch`, `sh`, `ny`, `th`, `dh`, `gh`, and `kh`;
-- `ng'`/`ng’` as the velar nasal and plain `ng` as nasal plus voiced velar stop;
-- common prenasalized sequences such as `mb`, `nd`, and `nj`;
-- `c`, `q`, and `x` fallback mappings for names and loanwords;
-- integer expansion using Kiswahili number words;
-- conservative spelling of likely all-uppercase acronyms;
-- punctuation boundaries and question flags.
-
-The parser deliberately does not collapse adjacent vowels into diphthong
-phones. Initial syllabic nasals in compact forms such as `mti`, `mtu`, `nchi`,
-and `mbwa` are marked with `NANOTTS_EVENT_SYLLABIC`.
-
-The shared acoustic inventory provides compact phones for `/θ/`, `/ð/`, and
-`/ɣ/`. Written `j` uses the renderer's voiced affricate. Regional variants,
-implosives, and every Arabic-loan realization are outside this small module.
-
-## Spanish (`es`)
-
-The Spanish module targets a neutral, broadly useful Latin-American-style
-pronunciation. Its deliberate defaults are:
-
-- **seseo:** `z` and soft `c` use `/s/` rather than `/θ/`;
-- **yeísmo:** `ll` and consonantal `y` share the renderer's palatal glide;
-- five stable vowel qualities;
-- written acute accents override automatic stress;
-- unaccented words normally stress the penultimate nucleus when ending in a
-  vowel, or in `n`/`s` after a vowel; other endings use the final nucleus;
-- unaccented weak vowels form glides beside a strong vowel, while accented
-  `í` and `ú` force hiatus;
-- `ai`, `au`, and `oi` use the renderer's smooth diphthong events where
-  applicable;
-- `ch`, `ll`, `rr`, `ñ`, silent `h`, `qu`, `gu`, and `gü` handling;
-- hard/soft `c` and `g`, `j → /x/`, and conservative `x` behavior;
-- taps versus trills for ordinary `r` and `rr`/strong `r`;
-- lightweight within-word `/b~β/`, `/d~ð/`, and `/g~ɣ/` allophony;
-- integer expansion through the unsigned 32-bit range;
-- Spanish letter-name expansion for likely all-uppercase acronyms;
-- inverted punctuation acceptance, phrase boundaries, and question flags.
-
-Examples:
-
-```text
-queso      → /keso/
-guitarra   → /giˈtara/       (`rr` uses the trill event)
-pingüino   → /pingwino/
-niño       → /niɲo/
-caro       → tap
-carro      → trill
-país       → two nuclei, stress on í
-hoy        → /oi/
-```
-
-The module does not attempt every regional realization. It does not provide
-Castilian `c/z → /θ/`, lleísmo, Caribbean final-`s` aspiration, voseo-specific
-prosody, or a proper-name dictionary. Some learned or foreign words require
-lexical knowledge for `x`, hiatus, or stress. Use explicit IPA for those cases.
-
-## Build-time selection
-
-All modules are enabled by default:
+Use explicit IPA when exact pronunciation matters:
 
 ```sh
-cmake -S . -B build
+nanotts --ipa "b_a_t_ə_r_ˈaɪ h_ˈa_m_p_i_r h_a_b_ˈi_s" -o warning.wav
 ```
 
-A one-language build excludes the other parsers and their normalization data:
-
-```sh
-cmake -S . -B build-id \
-  -DNANOTTS_ENABLE_LANG_ID=ON \
-  -DNANOTTS_ENABLE_LANG_SW=OFF \
-  -DNANOTTS_ENABLE_LANG_ES=OFF
-
-cmake -S . -B build-sw \
-  -DNANOTTS_ENABLE_LANG_ID=OFF \
-  -DNANOTTS_ENABLE_LANG_SW=ON \
-  -DNANOTTS_ENABLE_LANG_ES=OFF
-
-cmake -S . -B build-es \
-  -DNANOTTS_ENABLE_LANG_ID=OFF \
-  -DNANOTTS_ENABLE_LANG_SW=OFF \
-  -DNANOTTS_ENABLE_LANG_ES=ON
-```
-
-Any subset may be selected. An IPA-only build excludes the common text helpers
-and every G2P module:
-
-```sh
-cmake -S . -B build-ipa -DNANOTTS_ENABLE_TEXT_FRONTEND=OFF
-```
-
-Language selection adds no work to synthesis. A multi-language build performs
-one switch when text is parsed. A single-language build preprocesses to a
-direct parser call. Phone scheduling, formant updates, and sample generation
-contain no language branch.
-
-## External IPA producers
-
-NanoTTS accepts separated IPA from another process:
-
-```sh
-espeak-ng -q -v id --ipa=1 --sep=_ "selamat pagi" |
-  nanotts --ipa-file - -o id.wav
-
-espeak-ng -q -v sw --ipa=1 --sep=_ "habari yako" |
-  nanotts --ipa-file - -o sw.wav
-
-espeak-ng -q -v es-la --ipa=1 --sep=_ "hola, buenos días" |
-  nanotts --ipa-file - -o es.wav
-```
-
-External IPA is useful for names, regional variants, or words outside the
-compact built-in rules. No external TTS engine is required on the MCU.
-
-## Linguistic scope references
-
-The modules are independently implemented from descriptive language sources,
-not copied from another TTS system.
-
-Kiswahili references:
-
-- LDC, *Language Specific Peculiarities Document for Swahili as Spoken in
-  Kenya*: https://catalog.ldc.upenn.edu/docs/LDC2017S05/LSP_202_final.pdf
-- Kentalis, *Swahili*: https://www.kentalis.nl/file-download/download/public/2108
-
-Spanish scope references:
-
-- Real Academia Española, descriptions of Spanish stress and written accents:
-  https://www.rae.es/ortograf%C3%ADa/acentuaci%C3%B3n-gr%C3%A1fica
-- Real Academia Española, `seseo`:
-  https://www.rae.es/dpd/seseo
-- Real Academia Española, `yeísmo`:
-  https://www.rae.es/dpd/ye%C3%ADsmo
-
-These references describe languages. No source code, rule table, lexicon,
-recording, or numeric acoustic data was imported from them.
+For critical alarms, names, or public-facing language, validate the output with
+native speakers and keep an explicit IPA spelling for any word that the compact
+frontend does not render reliably.

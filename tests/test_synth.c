@@ -63,6 +63,25 @@ static sink_t render_ipa_text(const char *ipa)
     return sink;
 }
 
+
+static sink_t render_ipa_language(
+    nanotts_language_t language,
+    const char *ipa)
+{
+    nanotts_t tts;
+    nanotts_options_t options;
+    nanotts_parse_info_t info;
+    sink_t sink = { 0u, 0, 2166136261u, 0u };
+
+    assert(nanotts_init(&tts, 16000u, language) == NANOTTS_OK);
+    nanotts_default_options(&options);
+    options.final_tone = (uint8_t)NANOTTS_FINAL_LEVEL;
+    options.flags = NANOTTS_OPT_NO_AUTOPAUSE;
+    assert(nanotts_speak_ipa(&tts, ipa, NANOTTS_NPOS, &options,
+                           collect, &sink, &info) == NANOTTS_OK);
+    return sink;
+}
+
 static sink_t render_ipa_tone(const char *ipa, nanotts_final_tone_t tone)
 {
     nanotts_t tts;
@@ -93,6 +112,9 @@ int main(void)
     sink_t marked_auto;
     sink_t marked_rise;
     sink_t marked_fall;
+    sink_t neutral_profile;
+    sink_t language_profile;
+    nanotts_language_t first_language;
     size_t index;
 
     first = render_phrase(16000u, NANOTTS_FINAL_FALL);
@@ -137,5 +159,15 @@ int main(void)
     marked_fall = render_ipa_tone("a_p_a?", NANOTTS_FINAL_FALL);
     assert(marked_auto.checksum == marked_rise.checksum);
     assert(marked_auto.checksum != marked_fall.checksum);
+
+    /* The selected profile must affect the shared renderer without changing
+     * phone events. This also exercises IPA with language-selected prosody. */
+    if (nanotts_compiled_language_count() != 0u) {
+        first_language = nanotts_compiled_language_at(0u);
+        neutral_profile = render_ipa_language(NANOTTS_LANG_NONE, "a_m_a");
+        language_profile = render_ipa_language(first_language, "a_m_a");
+        assert(neutral_profile.count != language_profile.count ||
+               neutral_profile.checksum != language_profile.checksum);
+    }
     return 0;
 }

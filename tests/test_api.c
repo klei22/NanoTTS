@@ -17,6 +17,15 @@
 #ifndef NANOTTS_EXPECT_LANG_ES
 #define NANOTTS_EXPECT_LANG_ES 1
 #endif
+#ifndef NANOTTS_EXPECT_LANG_MS
+#define NANOTTS_EXPECT_LANG_MS 1
+#endif
+#ifndef NANOTTS_EXPECT_LANG_MI
+#define NANOTTS_EXPECT_LANG_MI 1
+#endif
+#ifndef NANOTTS_EXPECT_LANG_HAW
+#define NANOTTS_EXPECT_LANG_HAW 1
+#endif
 
 static int abort_immediately(void *user, const int16_t *samples, size_t count)
 {
@@ -33,6 +42,7 @@ int main(void)
     nanotts_parse_info_t info;
     nanotts_result_t result;
     nanotts_event_t event;
+    const nanotts_prosody_profile_t *default_profile;
 
     assert(nanotts_init(NULL, 16000u, NANOTTS_LANG_NONE) == NANOTTS_ERR_ARGUMENT);
     assert(nanotts_init(&tts, 7999u, NANOTTS_LANG_NONE) == NANOTTS_ERR_SAMPLE_RATE);
@@ -52,26 +62,83 @@ int main(void)
            NANOTTS_EXPECT_LANG_SW);
     assert(nanotts_language_available(NANOTTS_LANG_SPANISH) ==
            NANOTTS_EXPECT_LANG_ES);
+    assert(nanotts_language_available(NANOTTS_LANG_MALAY) ==
+           NANOTTS_EXPECT_LANG_MS);
+    assert(nanotts_language_available(NANOTTS_LANG_MAORI) ==
+           NANOTTS_EXPECT_LANG_MI);
+    assert(nanotts_language_available(NANOTTS_LANG_HAWAIIAN) ==
+           NANOTTS_EXPECT_LANG_HAW);
     assert(nanotts_language_from_code("id") == NANOTTS_LANG_INDONESIAN);
     assert(nanotts_language_from_code("Kiswahili") == NANOTTS_LANG_KISWAHILI);
     assert(nanotts_language_from_code("es-MX") == NANOTTS_LANG_SPANISH);
     assert(nanotts_language_from_code("español") == NANOTTS_LANG_SPANISH);
     assert(nanotts_language_from_code("ESPAÑOL") == NANOTTS_LANG_SPANISH);
     assert(nanotts_language_from_code("castellano") == NANOTTS_LANG_SPANISH);
+    assert(nanotts_language_from_code("ms-MY") == NANOTTS_LANG_MALAY);
+    assert(nanotts_language_from_code("bahasa-melayu") == NANOTTS_LANG_MALAY);
+    assert(nanotts_language_from_code("MĀORI") == NANOTTS_LANG_MAORI);
+    assert(nanotts_language_from_code("te-reo") == NANOTTS_LANG_MAORI);
+    assert(nanotts_language_from_code("haw-US") == NANOTTS_LANG_HAWAIIAN);
+    assert(nanotts_language_from_code("ʻōlelo-hawaiʻi") == NANOTTS_LANG_HAWAIIAN);
     assert(nanotts_language_from_code("bogus") == NANOTTS_LANG_COUNT);
     assert(strcmp(nanotts_language_code(NANOTTS_LANG_KISWAHILI), "sw") == 0);
     assert(strcmp(nanotts_language_code(NANOTTS_LANG_SPANISH), "es") == 0);
+    assert(strcmp(nanotts_language_code(NANOTTS_LANG_MALAY), "ms") == 0);
+    assert(strcmp(nanotts_language_code(NANOTTS_LANG_MAORI), "mi") == 0);
+    assert(strcmp(nanotts_language_code(NANOTTS_LANG_HAWAIIAN), "haw") == 0);
     assert(strstr(nanotts_language_name(NANOTTS_LANG_SPANISH), "Spanish") != NULL);
     assert(NANOTTS_LANG_SWAHILI == NANOTTS_LANG_KISWAHILI);
     assert(NANOTTS_LANG_SPANISH_LATIN_AMERICAN == NANOTTS_LANG_SPANISH);
+    assert(NANOTTS_LANG_BAHASA_MELAYU == NANOTTS_LANG_MALAY);
+    assert(NANOTTS_LANG_TE_REO_MAORI == NANOTTS_LANG_MAORI);
+    assert(NANOTTS_LANG_OLELO_HAWAII == NANOTTS_LANG_HAWAIIAN);
     assert(nanotts_compiled_language_count() ==
            (size_t)(NANOTTS_EXPECT_LANG_ID + NANOTTS_EXPECT_LANG_SW +
-                    NANOTTS_EXPECT_LANG_ES));
+                    NANOTTS_EXPECT_LANG_ES + NANOTTS_EXPECT_LANG_MS +
+                    NANOTTS_EXPECT_LANG_MI + NANOTTS_EXPECT_LANG_HAW));
     if (nanotts_compiled_language_count() > 0u) {
         assert(nanotts_compiled_language_at(0u) != NANOTTS_LANG_NONE);
     }
     assert(nanotts_compiled_language_at(nanotts_compiled_language_count()) ==
            NANOTTS_LANG_NONE);
+    default_profile = nanotts_language_prosody(NANOTTS_LANG_NONE);
+    assert(default_profile != NULL);
+#if NANOTTS_EXPECT_LANG_ID
+    assert(nanotts_language_prosody(NANOTTS_LANG_INDONESIAN) != default_profile);
+#else
+    assert(nanotts_language_prosody(NANOTTS_LANG_INDONESIAN) == default_profile);
+#endif
+#if NANOTTS_EXPECT_LANG_SW
+    assert(nanotts_language_prosody(NANOTTS_LANG_KISWAHILI) != default_profile);
+#else
+    assert(nanotts_language_prosody(NANOTTS_LANG_KISWAHILI) == default_profile);
+#endif
+#if NANOTTS_EXPECT_LANG_ES
+    assert(nanotts_language_prosody(NANOTTS_LANG_SPANISH) != default_profile);
+#else
+    assert(nanotts_language_prosody(NANOTTS_LANG_SPANISH) == default_profile);
+#endif
+#if NANOTTS_EXPECT_LANG_MS
+    assert(nanotts_language_prosody(NANOTTS_LANG_MALAY) != default_profile);
+#else
+    assert(nanotts_language_prosody(NANOTTS_LANG_MALAY) == default_profile);
+#endif
+#if NANOTTS_EXPECT_LANG_MI
+    assert(nanotts_language_prosody(NANOTTS_LANG_MAORI) != default_profile);
+#else
+    assert(nanotts_language_prosody(NANOTTS_LANG_MAORI) == default_profile);
+#endif
+#if NANOTTS_EXPECT_LANG_HAW
+    assert(nanotts_language_prosody(NANOTTS_LANG_HAWAIIAN) != default_profile);
+#else
+    assert(nanotts_language_prosody(NANOTTS_LANG_HAWAIIAN) == default_profile);
+#endif
+#if NANOTTS_EXPECT_LANG_MI && NANOTTS_EXPECT_LANG_ES
+    assert(nanotts_language_prosody(NANOTTS_LANG_MAORI)->vowel_duration_percent !=
+           nanotts_language_prosody(NANOTTS_LANG_SPANISH)->vowel_duration_percent);
+#endif
+    assert(nanotts_language_prosody(NANOTTS_LANG_COUNT) ==
+           nanotts_language_prosody(NANOTTS_LANG_NONE));
 
 #if NANOTTS_EXPECT_LANG_ID
     assert(nanotts_set_language(&tts, NANOTTS_LANG_INDONESIAN) == NANOTTS_OK);
@@ -92,6 +159,27 @@ int main(void)
     assert(nanotts_language(&tts) == NANOTTS_LANG_SPANISH);
 #else
     assert(nanotts_set_language(&tts, NANOTTS_LANG_SPANISH) ==
+           NANOTTS_ERR_LANGUAGE_UNAVAILABLE);
+#endif
+#if NANOTTS_EXPECT_LANG_MS
+    assert(nanotts_set_language(&tts, NANOTTS_LANG_MALAY) == NANOTTS_OK);
+    assert(nanotts_language(&tts) == NANOTTS_LANG_MALAY);
+#else
+    assert(nanotts_set_language(&tts, NANOTTS_LANG_MALAY) ==
+           NANOTTS_ERR_LANGUAGE_UNAVAILABLE);
+#endif
+#if NANOTTS_EXPECT_LANG_MI
+    assert(nanotts_set_language(&tts, NANOTTS_LANG_MAORI) == NANOTTS_OK);
+    assert(nanotts_language(&tts) == NANOTTS_LANG_MAORI);
+#else
+    assert(nanotts_set_language(&tts, NANOTTS_LANG_MAORI) ==
+           NANOTTS_ERR_LANGUAGE_UNAVAILABLE);
+#endif
+#if NANOTTS_EXPECT_LANG_HAW
+    assert(nanotts_set_language(&tts, NANOTTS_LANG_HAWAIIAN) == NANOTTS_OK);
+    assert(nanotts_language(&tts) == NANOTTS_LANG_HAWAIIAN);
+#else
+    assert(nanotts_set_language(&tts, NANOTTS_LANG_HAWAIIAN) ==
            NANOTTS_ERR_LANGUAGE_UNAVAILABLE);
 #endif
     assert(nanotts_set_language(&tts, NANOTTS_LANG_NONE) == NANOTTS_OK);
